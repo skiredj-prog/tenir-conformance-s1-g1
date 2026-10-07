@@ -1,41 +1,25 @@
-# S1 real-subject probe
+# S1 real-subject result
 
-## Subject
+The earlier PolicyEngine-only probe was correct as an architectural finding:
+`tenir_governance.PolicyEngine` does not implement RFC-4 permit/attempt/receipt
+reconciliation state and is therefore not itself the S1 subject.
 
-`skiredj-prog/tenir_governance` — public `PolicyEngine`.
+S1 is now executed against the RFC-4 membrane implementation, with its scoring
+bridge backed by the real reference `tenir_governance.PolicyEngine`.
 
-## Probe
+Separation:
+- membrane: permit, attempt, effect, receipt, unresolved state, retry inhibition;
+- kernel bridge: maps payload `(P,V,K)` to the real PolicyEngine API;
+- PolicyEngine: supplies the real admissibility score/decision only.
 
-The experiment calls the real `PolicyEngine.default()` and evaluates the same
-otherwise admissible transition twice: once as the original attempt and once
-as a retry after hypothetical evidence loss.
+The reference PolicyEngine exposes `capacity_s(P,V,K)` and
+`evaluate_membrane`, not a single `evaluate(P,V,K)` method. The bridge uses
+those real APIs and does not add RFC-4 semantics to the kernel.
 
-## Observation
+S1a, S1b and S1c produce the same client projection: **UNKNOWN / HOLD**.
+For S1b, the target effect occurs once while the receipt is lost; retry for the
+same LEI does not call the kernel and does not execute a second effect.
 
-The two classifications are identical.
-
-The policy engine has no state or input for:
-
-- logical execution identity (LEI);
-- attempt identity;
-- issued/consumed execution permit;
-- receipt availability;
-- reconciliation state;
-- unresolved-attempt retry inhibition.
-
-## Scientific interpretation
-
-**S1 is not empirically demonstrated by the current PolicyEngine.**
-
-This is not a failure of the experiment. It is the result of the probe: the
-current subject does not expose the state required to implement the S1
-invariant.
-
-The correct next engineering target is therefore an execution-boundary
-adapter/gateway that makes reconciliation state part of the admissibility
-decision and prevents a new permit while the original attempt is unresolved.
-
-Do not label this result "S1 conforming". Label it:
-
-> REAL-SUBJECT PROBE: S1 PROPERTY NOT IMPLEMENTED / NOT TESTABLE AT THE
-> CURRENT POLICYENGINE BOUNDARY.
+This is empirical evidence for the RFC-4 membrane implementation backed by the
+reference TENIR PolicyEngine. It is not evidence that PolicyEngine itself
+implements RFC-4.
