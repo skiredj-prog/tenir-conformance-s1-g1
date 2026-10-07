@@ -16,8 +16,14 @@ jobs:
           python-version: "3.12"
       - name: Install package
         run: pip install -e ".[test]"
-      - name: Run S1 tests
+      - name: Run S1 harness tests
         run: python -m pytest tests/test_s1.py -v --tb=short
+
+      - name: Install real TENIR subject
+        run: pip install "git+https://github.com/skiredj-prog/tenir_governance.git"
+
+      - name: Probe real TENIR PolicyEngine
+        run: python -m pytest experiments/real_tenir/test_s1_policy_subject.py -v --tb=short
       - name: Generate evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
       - name: Upload evidence
