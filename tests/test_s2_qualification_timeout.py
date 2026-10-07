@@ -153,3 +153,115 @@ def test_s2_retry_does_not_call_kernel_after_timeout():
     m.check_qualification_timeouts()
     m.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
     assert bridge.calls == 1
+
+
+# ── Additional timeout edge cases ───────────────────────────────────────────
+
+
+def test_timeout_fires_exactly_at_tau_k_boundary():
+    """Window closes at now == await_until_ms; one ms earlier must not fire."""
+    clock = FakeClock(now_ms=1_000_000)
+    m = _membrane(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=True
+    )
+    await_until = m.attempts["A"].await_until_ms
+    assert await_until == 1_000_000 + TAU_K_MS
+
+    clock.advance_to(await_until - 1)
+    assert m.check_qualification_timeouts() == []
+    assert m.attempts["A"].timeout_fired is False
+    assert m.attempts["A"].state == AttemptState.AWAITING_QUALIFICATION
+
+    clock.advance_to(await_until)
+    assert m.check_qualification_timeouts() == ["A"]
+    assert m.attempts["A"].timeout_fired is True
+    assert m.attempts["A"].state == AttemptState.UNKNOWN
+
+
+def test_check_qualification_timeouts_is_idempotent():
+    """Second check after fire must not duplicate events or re-fire."""
+    clock = FakeClock(now_ms=1_000_000)
+    m = _membrane(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=False
+    )
+    clock.advance_to(1_000_000 + TAU_K_MS)
+    assert m.check_qualification_timeouts() == ["A"]
+    n_events = len(m.events)
+    assert m.check_qualification_timeouts() == []
+    assert m.check_qualification_timeouts() == []
+    assert len(m.events) == n_events
+    assert sum(1 for e in m.events if e["event"] == "T_QualificationTimeout") == 1
+
+
+def test_timeout_without_effect_still_blocks_retry():
+    """apply_effect=False path: timeout still yields HOLD and blocks retry."""
+    clock = FakeClock(now_ms=1_000_000)
+    m = _membrane(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=False
+    )
+    assert len(m.sink.effects) == 0
+    clock.advance_to(1_000_000 + TAU_K_MS)
+    m.check_qualification_timeouts()
+    retry = m.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
+    assert retry.disposition.value == "HOLD"
+    assert retry.client_state == "UNKNOWN"
+    assert retry.kernel_decision == "NOT_EVALUATED"
+    assert len(m.sink.effects) == 0
+
+
+def test_timeout_independent_per_lei():
+    """Timeout on LEI L must not block a fresh attempt on LEI M."""
+    clock = FakeClock(now_ms=1_000_000)
+    m = _membrane(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A-L", payload=PAYLOAD, apply_effect=True
+    )
+    clock.advance_to(1_000_000 + TAU_K_MS)
+    m.check_qualification_timeouts()
+    assert m.attempts["A-L"].timeout_fired is True
+
+    other = m.admit_and_await_qualification(
+        lei="M", attempt_id="A-M", payload=PAYLOAD, apply_effect=True
+    )
+    assert other.disposition.value == "HOLD"
+    assert other.kernel_decision != "NOT_EVALUATED"
+    assert m.attempts["A-M"].state == AttemptState.AWAITING_QUALIFICATION
+    assert m.attempts["A-M"].timeout_fired is False
+
+
+def test_retry_implicitly_fires_timeout_before_guard():
+    """retry() must call check_qualification_timeouts before T1 guard."""
+    clock = FakeClock(now_ms=1_000_000)
+    m = _membrane(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=True
+    )
+    clock.advance_to(1_000_000 + TAU_K_MS)
+    retry = m.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
+    assert m.attempts["A"].timeout_fired is True
+    assert retry.disposition.value == "HOLD"
+    event_names = [e["event"] for e in m.events]
+    assert "T_QualificationTimeout" in event_names
+    assert "T1_guard_FALSE" in event_names
+    assert event_names.index("T_QualificationTimeout") < event_names.index(
+        "T1_guard_FALSE"
+    )
+
+
+def test_two_attempts_same_lei_second_blocked_before_timeout():
+    """Even before tau_K, second admit on same LEI is blocked (unresolved)."""
+    clock = FakeClock(now_ms=1_000_000)
+    m = _membrane(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=True
+    )
+    second = m.admit_and_await_qualification(
+        lei="L", attempt_id="A2", payload=PAYLOAD, apply_effect=True
+    )
+    assert second.disposition.value == "HOLD"
+    assert second.kernel_decision == "NOT_EVALUATED"
+    assert "A2" not in m.attempts
+    assert len(m.sink.effects) == 1
