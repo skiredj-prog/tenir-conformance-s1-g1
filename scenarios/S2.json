@@ -1,0 +1,100 @@
+{
+  "id": "S2",
+  "title": "Qualification Timeout",
+  "version": "G0",
+  "locked_name": "Qualification Timeout",
+  "claim": "When no qualifying evidence arrives within tau_K after permit consumption, the membrane expires the qualification window, projects UNKNOWN/HOLD, and blocks a same-LEI retry until reconciliation.",
+  "depends_on": ["S1"],
+  "path": [
+    "REQUEST",
+    "admit_and_consume_permit",
+    "AWAITING_QUALIFICATION",
+    "clock_past_tau_K_without_qualifying_receipt",
+    "QUALIFICATION_TIMEOUT",
+    "client_UNKNOWN_HOLD",
+    "retry_same_LEI_without_reconciliation",
+    "T1_guard_FALSE"
+  ],
+  "initial_state": {
+    "lei": "L",
+    "attempt_id": "A",
+    "permit": "CONSUMED",
+    "receipt_observed": false,
+    "recon": "PENDING",
+    "tau_K_ms": 5000,
+    "clock_ms": 1000000
+  },
+  "when": {
+    "qualifying_receipt_before_tau_K": false,
+    "advance_clock_past_tau_K": true,
+    "retry": {
+      "same_lei": true,
+      "fresh_nonce": true,
+      "reconciliation": false
+    }
+  },
+  "assertions": [
+    "client attempt state = UNKNOWN (unresolved)",
+    "recon remains PENDING (timeout does not auto-reconcile)",
+    "client disposition = HOLD",
+    "transition log contains qualification-timeout event before retry guard",
+    "T1_IssuePermit guard evaluates FALSE on same-LEI retry",
+    "no new permit issued for L",
+    "effect_sink.count() unchanged by retry",
+    "kernel not required on blocked retry path"
+  ],
+  "subcases": {
+    "S2a": {
+      "name": "pure_qualification_timeout",
+      "description": "No receipt before tau_K; clock past tau_K; retry same LEI",
+      "receipt_before_timeout": false,
+      "late_receipt_after_timeout": false,
+      "expected": {
+        "client_response": "HOLD",
+        "exec": "UNKNOWN",
+        "recon": "PENDING",
+        "new_permit": false,
+        "new_effect": false,
+        "timeout_event": true
+      }
+    },
+    "S2b": {
+      "name": "timeout_then_late_arrival",
+      "description": "Timeout fires; then a late receipt arrives; must not auto-commit",
+      "receipt_before_timeout": false,
+      "late_receipt_after_timeout": true,
+      "expected": {
+        "client_response": "HOLD",
+        "exec": "UNKNOWN",
+        "recon": "PENDING",
+        "auto_commit_on_late_receipt": false,
+        "new_permit": false,
+        "new_effect_from_retry": false
+      }
+    },
+    "S2c": {
+      "name": "bound_still_open_control",
+      "description": "Negative control: qualifying receipt inside tau_K must not fire timeout",
+      "receipt_before_timeout": true,
+      "late_receipt_after_timeout": false,
+      "expected": {
+        "timeout_event": false,
+        "note": "Full commit path is out of scope for S2 claim; only absence of timeout is required"
+      }
+    }
+  },
+  "out_of_scope": [
+    "reconciliation mechanism (S6)",
+    "contradictory evidence (S5)",
+    "stale receipt binding details beyond no auto-commit after tau_K (S4)",
+    "duplicate concurrent requests (S3)"
+  ],
+  "evidence_required": [
+    "scenario.json + sha256",
+    "fake_clock timestamps (t0, tau_K, timeout_fire, retry)",
+    "transition.jsonl",
+    "permit_log",
+    "effect_sink snapshot",
+    "client projection record"
+  ]
+}
