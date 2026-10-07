@@ -1,0 +1,27 @@
+name: S1 G1 Harness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: pip install -e ".[test]"
+      - name: Run S1 tests
+        run: python -m pytest tests/test_s1.py -v --tb=short
+      - name: Generate evidence artifacts
+        run: PYTHONPATH=src python tools/run_s1.py
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: s1-evidence
+          path: artifacts/s1/
