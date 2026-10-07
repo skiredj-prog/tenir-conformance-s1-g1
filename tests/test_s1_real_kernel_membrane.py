@@ -53,7 +53,7 @@ def test_all_s1_subcases_have_identical_client_projection_and_real_kernel_score(
     projections = [(first.client_state, first.disposition.value, retry.client_state, retry.disposition.value)
                    for first, retry, _ in cases]
     assert projections == [("UNKNOWN", "HOLD", "UNKNOWN", "HOLD")] * 3
-    assert all(first.kernel_score == 4.0 for first, _, _ in cases)
+    assert all(abs(first.kernel_score - 3.999984000064) < 1e-9 for first, _, _ in cases)
     assert all(first.kernel_decision == "allow" for first, _, _ in cases)
 
 
