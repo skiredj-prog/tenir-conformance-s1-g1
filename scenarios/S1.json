@@ -1,0 +1,46 @@
+{
+  "id": "S1",
+  "title": "Evidence Lost After Commit",
+  "version": "G0",
+  "claim": "When the client cannot observe whether a consequential effect occurred, the retry must be held, not executed. Reconciliation resolves the state before any new attempt is authorized.",
+  "initial_state": {
+    "lei": "L",
+    "attempt_id": "A",
+    "permit": "ISSUED",
+    "permit_consumed": false,
+    "target_observable": false,
+    "receipt_observed": false,
+    "effect_count": 1
+  },
+  "retry": {
+    "same_lei": true,
+    "fresh_nonce": true,
+    "reconciliation": false
+  },
+  "assertions": [
+    "exec(A) = UNKNOWN",
+    "recon(A) = PENDING",
+    "T1_IssuePermit guard evaluates FALSE",
+    "no new permit is issued for L",
+    "effect_sink.count() is unchanged by the retry",
+    "transition log contains T3_ReceiptLost, then T1_guard_FALSE",
+    "client response = HOLD"
+  ],
+  "subcases": {
+    "S1a": {
+      "name": "request lost",
+      "target_effect": 0,
+      "receipt": 0
+    },
+    "S1b": {
+      "name": "response lost",
+      "target_effect": 1,
+      "receipt": 0
+    },
+    "S1c": {
+      "name": "rejection response lost",
+      "target_effect": 0,
+      "receipt": 0
+    }
+  }
+}
