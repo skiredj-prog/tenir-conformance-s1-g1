@@ -1,4 +1,4 @@
-name: S1 G1 Harness
+name: Membrane CI (S1 + S2)
 
 on:
   push:
@@ -14,8 +14,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install package
         run: pip install -e ".[test]"
+
       - name: Run S1 harness tests
         run: python -m pytest tests/test_s1.py -v --tb=short
 
@@ -27,8 +29,13 @@ jobs:
 
       - name: Run S1 membrane with real TENIR kernel
         run: python -m pytest tests/test_s1_real_kernel_membrane.py -v --tb=short
-      - name: Generate evidence artifacts
+
+      - name: Run S2 Qualification Timeout membrane tests
+        run: python -m pytest tests/test_s2_qualification_timeout.py -v --tb=short
+
+      - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
+
       - name: Upload evidence
         uses: actions/upload-artifact@v4
         with:
