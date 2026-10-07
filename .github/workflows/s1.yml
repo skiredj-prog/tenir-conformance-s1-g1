@@ -24,6 +24,9 @@ jobs:
 
       - name: Probe real TENIR PolicyEngine
         run: python -m pytest experiments/real_tenir/test_s1_policy_subject.py -v --tb=short
+
+      - name: Run S1 membrane with real TENIR kernel
+        run: python -m pytest tests/test_s1_real_kernel_membrane.py -v --tb=short
       - name: Generate evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
       - name: Upload evidence
