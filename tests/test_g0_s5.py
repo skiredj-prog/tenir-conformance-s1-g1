@@ -36,6 +36,9 @@ def _membrane(clock: FakeClock | None = None) -> Membrane:
         clock=clock or FakeClock(now_ms=NOW),
         tau_k_ms=TAU,
         conflict_sensitive_properties={"exposure"},
+        quarantine_release_authorizer=lambda principal, lei: (
+            principal == "risk-owner-test" and bool(lei)
+        ),
     )
 
 
@@ -310,6 +313,16 @@ def test_s5_quarantine_persists_until_explicit_audited_release():
     assert len(m.sink.effects) == effects_before
     assert "L" in m.governance_quarantine
 
+    with pytest.raises(PermissionError):
+        m.resolve_governance_quarantine(
+            lei="L",
+            incident_id=quarantine["incident_id"],
+            authorized_by="untrusted-test",
+            rationale="An untrusted principal must not lift quarantine.",
+        )
+    assert "L" in m.governance_quarantine
+    assert any(e["event"] == "GOVERNANCE_QUARANTINE_RELEASE_REJECTED" for e in m.events)
+
     m.resolve_governance_quarantine(
         lei="L",
         incident_id=quarantine["incident_id"],
@@ -334,3 +347,22 @@ def test_s5_evidence_id_is_stable_and_cannot_be_rewritten():
 
     with pytest.raises(IncompleteEvidence):
         m.evaluate_evidence_batch(attempt_id="A1", evidence_batch=[changed_payload])
+
+
+def test_s5_mixed_normalization_profiles_are_rejected_before_decision():
+    m = _membrane()
+    m._register_attempt(lei="L", attempt_id="A1", nonce="n-s5")
+    batch = [
+        _evidence("E-V1", "COMMITTED", properties={"exposure": 1000},
+                  normalization_profile="exposure-v1"),
+        _evidence("E-V2", "COMMITTED", properties={"exposure": 2500},
+                  normalization_profile="exposure-v2"),
+    ]
+
+    with pytest.raises(IncompleteEvidence):
+        m.evaluate_evidence_batch(attempt_id="A1", evidence_batch=batch)
+
+    assert m.attempts["A1"].state == AttemptState.PENDING
+    assert m.is_execution_permit_usable("A1") is True
+    assert not any(e["event"] == "EVIDENCE_CONTRADICTION" for e in m.events)
+

@@ -6,7 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from .kernel_bridge import KernelBridge
 
@@ -150,7 +150,8 @@ class Membrane:
 
     def __init__(self, bridge: KernelBridge, sink: EffectSink | None = None,
                  clock: FakeClock | None = None, tau_k_ms: int = 5_000,
-                 conflict_sensitive_properties: set[str] | frozenset[str] | None = None) -> None:
+                 conflict_sensitive_properties: set[str] | frozenset[str] | None = None,
+                 quarantine_release_authorizer: Callable[[str, str], bool] | None = None) -> None:
         self.bridge = bridge
         self.sink = sink or EffectSink()
         self.clock = clock or FakeClock()
@@ -167,6 +168,8 @@ class Membrane:
         self.governance_quarantine: dict[str, dict[str, Any]] = {}
         self.governance_quarantine_history: list[dict[str, Any]] = []
         self._evidence_registry: dict[str, str] = {}
+        # Fail closed: quarantine release requires an injected authority check.
+        self.quarantine_release_authorizer = quarantine_release_authorizer
 
     def _log(self, event: str, **fields: Any) -> None:
         self.events.append({"ts_ms": self.clock.now_ms, "event": event, **fields})
@@ -536,6 +539,12 @@ class Membrane:
                 )
             fingerprints[evidence.evidence_id] = fingerprint
 
+        profiles = {evidence.normalization_profile for evidence in batch}
+        if len(profiles) != 1:
+            raise IncompleteEvidence(
+                "Evidence batch mixes normalization profiles; normalize all items under one profile first."
+            )
+
         # Phase 2: strict binding to one exact attempt. No state mutation.
         if not attempt.nonce:
             raise BindingError("Target attempt has no registered nonce.")
@@ -759,6 +768,14 @@ class Membrane:
             raise KeyError(lei)
         if quarantine["incident_id"] != incident_id:
             raise ValueError("incident_id does not match the active quarantine.")
+        if (
+            self.quarantine_release_authorizer is None
+            or not self.quarantine_release_authorizer(authorized_by, lei)
+        ):
+            self._log("GOVERNANCE_QUARANTINE_RELEASE_REJECTED", lei=lei,
+                      incident_id=incident_id, authorized_by=authorized_by,
+                      reason="AUTHORIZATION_DENIED")
+            raise PermissionError("Governance quarantine release was not authorized.")
         released = dict(quarantine)
         released.update({
             "state": "RELEASED",

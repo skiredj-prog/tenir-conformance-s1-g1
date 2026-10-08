@@ -1,4 +1,4 @@
-name: Membrane CI (S1–S4 + T7/T8)
+name: Membrane CI (S1–S5 + T7/T8)
 
 on:
   push:
