@@ -1,0 +1,13 @@
+{
+  "id": "S4",
+  "title": "Stale Receipt",
+  "version": "G0",
+  "locked_name": "Stale Receipt",
+  "claim": "Closed window or expired token rejects receipt; no COMMIT, no effect delta.",
+  "depends_on": ["S2", "T7"],
+  "subcases": {
+    "S4a": {"name": "window_closed_late_receipt", "expected": "HOLD + RECEIPT_REJECTED"},
+    "S4b": {"name": "open_window_expired_token", "expected": "StaleReceiptError"}
+  },
+  "assertions": ["A1", "A2", "A3", "A4", "A5", "A6", "A7"]
+}
