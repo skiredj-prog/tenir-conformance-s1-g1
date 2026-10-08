@@ -28,7 +28,7 @@ Sub-cases:
 | IN_FLIGHT / window OPEN | `AttemptState.AWAITING_QUALIFICATION` |
 | UNKNOWN + window CLOSED | `timeout_fired` + `AttemptState.UNKNOWN` after `check_qualification_timeouts` |
 | COMMITTED | `AttemptState.RESOLVED` + `qualified=True` |
-| process_receipt | `deliver_qualifying_receipt(...)` |
+| process_receipt | `deliver_qualifying_receipt(Receipt(...))` |
 
 ---
 
@@ -38,12 +38,12 @@ Sub-cases:
 
 1. Submit A1 → AWAITING_QUALIFICATION (window OPEN).  
 2. Advance clock past τ_K → UNKNOWN, `timeout_fired=true` (window CLOSED).  
-3. Present late bound receipt → RECEIPT_REJECTED / WINDOW_CLOSED; client HOLD; no RESOLVED; Δ effect = 0.
+3. Present late bound Receipt → RECEIPT_REJECTED / WINDOW_CLOSED; client HOLD; no RESOLVED; Δ effect = 0.
 
 ### S4b — Expired Token on Active Attempt (window OPEN)
 
 1. Submit A1 → AWAITING_QUALIFICATION.  
-2. Process receipt with `expires_at_ms <= now` → STALE_RECEIPT → `StaleReceiptError`; not RESOLVED; Δ effect = 0.
+2. Process Receipt with `expires_at_ms <= now` → STALE_RECEIPT → `StaleReceiptError`; not RESOLVED; Δ effect = 0.
 
 ---
 
@@ -51,7 +51,7 @@ Sub-cases:
 
 On `deliver_qualifying_receipt(...)`, evaluation order:
 
-1. **Attempt / receipt binding** — attempt exists; when provided, `receipt.lei == attempt.lei` and `receipt.nonce == attempt.nonce`.  
+1. **Attempt / receipt binding (mandatory)** — a `Receipt` object is required for qualification; `receipt.attempt_id == attempt.attempt_id` ∧ `receipt.lei == attempt.lei` ∧ `receipt.nonce == attempt.nonce` (nonce must be registered at admit; empty nonce → reject). Legacy kwargs MUST NOT transition to RESOLVED.  
 2. **Terminal / window closure** — state not FAILED/RESOLVED; window OPEN (not `timeout_fired` / UNKNOWN post-τ_K).  
 3. **Token freshness** — `expires_at_ms` absent or `now < expires_at_ms`.  
 4. **State transition** — only then may transition toward RESOLVED.  
@@ -85,7 +85,7 @@ PASS requires generation of:
 | **A3** | Effect invariant | Cumulative effect sink delta | Δ EffectSink.count == 0 on reject path (strong: baseline may be > 0) |
 | **A4** | Guard decision | Explicit stale/reject trace | `RECEIPT_REJECTED` / `STALE_RECEIPT` (or LATE_RECEIPT alias) |
 | **A5** | Permit safety | Execution authorization lock | No new permit; stale path cannot consume a usable permit to commit |
-| **A6** | Identity/binding | Attempt/receipt identity | lei/nonce match when provided; mismatch → reject |
+| **A6** | Identity/binding | Attempt/receipt identity | Receipt required; attempt_id/lei/nonce exact match; legacy kwargs cannot RESOLVED |
 | **A7** | Empiricism | Scope of claim | Sequential interleavings only — not general concurrent proof |
 
 ---
