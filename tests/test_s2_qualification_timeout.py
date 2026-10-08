@@ -13,6 +13,73 @@ from tenir_conformance.membrane.kernel_bridge import KernelBridge
 
 PAYLOAD = {"P": 0.5, "V": 0.5, "K": 1.0, "option_space": 1.0}
 TAU_K_MS = 5_000
+ROOT = Path(__file__).resolve().parents[1]
+SPEC_PATH = ROOT / "G0_S2_Qualification_Timeout.md"
+SCENARIO_PATH = ROOT / "scenarios" / "S2.json"
+ARTIFACTS = ROOT / "artifacts" / "s2"
+
+
+def _spec_sha() -> str:
+    if SPEC_PATH.is_file():
+        return hashlib.sha256(SPEC_PATH.read_bytes()).hexdigest()
+    return ""
+
+
+def _scenario_sha() -> str:
+    if SCENARIO_PATH.is_file():
+        return hashlib.sha256(SCENARIO_PATH.read_bytes()).hexdigest()
+    return ""
+
+
+def _dump_s2(membrane: Membrane, subcase: str, extra: dict | None = None) -> None:
+    """Write the five physical S2 evidence artifacts (G0 empiricism)."""
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    extra = extra or {}
+    events = list(membrane.events)
+    body = {
+        "subcase": subcase,
+        "spec_sha256": _spec_sha(),
+        "scenario_sha256": _scenario_sha(),
+        "effect_sink_count": len(membrane.sink.effects),
+        "attempts": {
+            k: {
+                "lei": a.lei,
+                "state": a.state.value,
+                "timeout_fired": a.timeout_fired,
+                "qualified": a.qualified,
+            }
+            for k, a in membrane.attempts.items()
+        },
+        "permits": {
+            k: {"lei": p.lei, "consumed": p.consumed}
+            for k, p in membrane.permits.items()
+        },
+        "transition_log": events,
+        **extra,
+    }
+    with (ARTIFACTS / f"evidence_G0_{subcase}.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(body, sort_keys=True) + "\n")
+    (ARTIFACTS / f"{subcase}_transition.json").write_text(
+        json.dumps(events, indent=2), encoding="utf-8"
+    )
+    (ARTIFACTS / f"{subcase}_permit.json").write_text(
+        json.dumps(body["permits"], indent=2), encoding="utf-8"
+    )
+    (ARTIFACTS / f"{subcase}_effect_sink.json").write_text(
+        json.dumps(membrane.sink.effects, indent=2), encoding="utf-8"
+    )
+    (ARTIFACTS / f"{subcase}_result.json").write_text(
+        json.dumps(
+            {
+                "subcase": subcase,
+                "spec_sha256": body["spec_sha256"],
+                "scenario_sha256": body["scenario_sha256"],
+                **{k: v for k, v in extra.items()},
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _membrane(clock: FakeClock | None = None) -> Membrane:
@@ -56,6 +123,16 @@ def test_s2a_pure_qualification_timeout_hold_and_blocks_retry():
     assert event_names.index("T_QualificationTimeout") < event_names.index(
         "T1_guard_FALSE"
     )
+    _dump_s2(
+        m,
+        "S2a",
+        {
+            "disposition": retry.disposition.value,
+            "client_state": retry.client_state,
+            "timeout_fired": True,
+            "claim_scope": "sequential interleavings only",
+        },
+    )
 
 
 def test_s2b_timeout_then_late_receipt_does_not_auto_commit():
@@ -85,6 +162,17 @@ def test_s2b_timeout_then_late_receipt_does_not_auto_commit():
     event_names = [e["event"] for e in m.events]
     assert "LATE_RECEIPT_AFTER_TIMEOUT_NO_AUTO_COMMIT" in event_names
 
+    _dump_s2(
+        m,
+        "S2b",
+        {
+            "disposition": late.disposition.value,
+            "client_state": late.client_state,
+            "timeout_event": late.timeout_event,
+            "claim_scope": "sequential interleavings only",
+        },
+    )
+
 
 def test_s2c_receipt_inside_window_does_not_fire_timeout():
     """Negative control: qualifying receipt before tau_K -> no timeout event."""
@@ -106,6 +194,17 @@ def test_s2c_receipt_inside_window_does_not_fire_timeout():
     event_names = [e["event"] for e in m.events]
     assert "T_QualificationTimeout" not in event_names
     assert "RECEIPT_QUALIFIED" in event_names
+
+    _dump_s2(
+        m,
+        "S2c",
+        {
+            "disposition": "PASS",
+            "client_state": "RESOLVED",
+            "timeout_fired": False,
+            "claim_scope": "sequential interleavings only",
+        },
+    )
 
 
 def test_s2_unbound_receipt_rejected():
