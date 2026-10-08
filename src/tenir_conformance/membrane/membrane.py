@@ -1,4 +1,4 @@
-"""RFC-4 property-preserving membrane (S1/S2 + T7/T8 FAILED/retry_eligible)."""
+"""RFC-4 property-preserving membrane (S1/S2/S3 + T7/T8)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,14 @@ from enum import Enum
 from typing import Any, Mapping
 
 from .kernel_bridge import KernelBridge
+
+
+class DuplicateAttemptID(Exception):
+    """Raised when attempt_id is already registered (S3d identity uniqueness)."""
+
+
+class UnresolvedSameLEI(Exception):
+    """Raised when LEI is locked by an unresolved attempt (S3a–S3c)."""
 
 
 class Disposition(str, Enum):
@@ -58,7 +66,6 @@ class Attempt:
     qualified: bool = False
     timeout_fired: bool = False
     await_until_ms: int | None = None
-    # T7/T8: terminal failure and whether a new attempt on same LEI is allowed
     retry_eligible: bool = False
     failure_reason: str | None = None
 
@@ -88,7 +95,7 @@ class MembraneResult:
 
 
 class Membrane:
-    """RFC-4 membrane: permit, attempt, receipt, tau_K, FAILED/retry_eligible."""
+    """RFC-4 membrane: permit, attempt, receipt, tau_K, S3 barrier, T7/T8."""
 
     def __init__(
         self,
@@ -111,10 +118,8 @@ class Membrane:
         )
 
     def _blocks_new_attempt(self, attempt: Attempt) -> bool:
-        """Return True if this attempt still blocks a new attempt on the same LEI."""
         if attempt.state == AttemptState.RESOLVED:
             return False
-        # T8: FAILED + retry_eligible allows a fresh attempt on the same LEI
         if attempt.state == AttemptState.FAILED and attempt.retry_eligible:
             return False
         return True
@@ -132,6 +137,31 @@ class Membrane:
             return Disposition.HOLD, AttemptState.FAILED.value
         return Disposition.HOLD, AttemptState.UNKNOWN.value
 
+    def _register_attempt(self, *, lei: str, attempt_id: str) -> Attempt:
+        """Entry barrier (G0 S3): unique attempt_id, then LEI exclusion."""
+        if attempt_id in self.attempts:
+            self._log("S3_DUPLICATE_ATTEMPT_ID", lei=lei, attempt_id=attempt_id)
+            raise DuplicateAttemptID(
+                f"Registration rejected: attempt_id '{attempt_id}' already exists."
+            )
+        if self._has_unresolved(lei):
+            self._log(
+                "T1_guard_FALSE",
+                lei=lei,
+                attempt_id=attempt_id,
+                reason="UNRESOLVED_SAME_LEI",
+            )
+            raise UnresolvedSameLEI(
+                f"Registration rejected: LEI '{lei}' is locked by an unresolved attempt."
+            )
+        attempt = Attempt(lei=lei, attempt_id=attempt_id)
+        self.attempts[attempt_id] = attempt
+        self.permits[attempt_id] = Permit(
+            lei=lei, attempt_id=attempt_id, issued_at_ms=self.clock.now_ms
+        )
+        self._log("PERMIT_ISSUED", lei=lei, attempt_id=attempt_id)
+        return attempt
+
     def process_transaction(
         self,
         *,
@@ -142,20 +172,20 @@ class Membrane:
         receipt_lost: bool = False,
         target_rejected: bool = False,
     ) -> MembraneResult:
-        if self._has_unresolved(lei):
-            self._log("T1_guard_FALSE", lei=lei, reason="UNRESOLVED_SAME_LEI")
+        try:
+            attempt = self._register_attempt(lei=lei, attempt_id=attempt_id)
+        except DuplicateAttemptID:
             return MembraneResult(
                 Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                 len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
                 events=[e["event"] for e in self.events],
             )
-
-        attempt = Attempt(lei=lei, attempt_id=attempt_id)
-        self.attempts[attempt_id] = attempt
-        self.permits[attempt_id] = Permit(
-            lei=lei, attempt_id=attempt_id, issued_at_ms=self.clock.now_ms
-        )
-        self._log("PERMIT_ISSUED", lei=lei, attempt_id=attempt_id)
+        except UnresolvedSameLEI:
+            return MembraneResult(
+                Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
+                events=[e["event"] for e in self.events],
+            )
 
         kd = self.bridge.evaluate(payload)
         if not kd.admissible:
@@ -247,20 +277,20 @@ class Membrane:
         payload: Mapping[str, Any],
         apply_effect: bool = True,
     ) -> MembraneResult:
-        if self._has_unresolved(lei):
-            self._log("T1_guard_FALSE", lei=lei, reason="UNRESOLVED_SAME_LEI")
+        try:
+            attempt = self._register_attempt(lei=lei, attempt_id=attempt_id)
+        except DuplicateAttemptID:
             return MembraneResult(
                 Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                 len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
                 events=[e["event"] for e in self.events],
             )
-
-        attempt = Attempt(lei=lei, attempt_id=attempt_id)
-        self.attempts[attempt_id] = attempt
-        self.permits[attempt_id] = Permit(
-            lei=lei, attempt_id=attempt_id, issued_at_ms=self.clock.now_ms
-        )
-        self._log("PERMIT_ISSUED", lei=lei, attempt_id=attempt_id)
+        except UnresolvedSameLEI:
+            return MembraneResult(
+                Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
+                events=[e["event"] for e in self.events],
+            )
 
         kd = self.bridge.evaluate(payload)
         if not kd.admissible:
@@ -367,8 +397,6 @@ class Membrane:
             events=[e["event"] for e in self.events],
         )
 
-    # ── T7 / T8: qualified failure and retry eligibility ──────────────────────
-
     def declare_failed(
         self,
         *,
@@ -377,24 +405,13 @@ class Membrane:
         retry_eligible: bool = True,
         reason: str = "QUALIFIED_NON_EXECUTION",
     ) -> MembraneResult:
-        """
-        T7 — UNKNOWN → FAILED (requires evidence qualification guard).
-
-        Timeout alone must not call this path. A qualified outcome (e.g. proven
-        non-execution, or explicit governance authority) is required.
-        When retry_eligible=True (T8), a subsequent attempt on the same LEI is allowed.
-        """
         if attempt_id not in self.attempts:
             raise KeyError(attempt_id)
         attempt = self.attempts[attempt_id]
         self.check_qualification_timeouts()
 
         if attempt.state == AttemptState.RESOLVED:
-            self._log(
-                "T7_REJECTED_ALREADY_RESOLVED",
-                lei=attempt.lei,
-                attempt_id=attempt_id,
-            )
+            self._log("T7_REJECTED_ALREADY_RESOLVED", lei=attempt.lei, attempt_id=attempt_id)
             disp, st = self._client_projection(attempt)
             return MembraneResult(
                 disp, st, attempt.receipt_observed, len(self.sink.effects),
@@ -410,11 +427,7 @@ class Membrane:
             AttemptState.PENDING,
         ):
             if attempt.state == AttemptState.FAILED:
-                self._log(
-                    "T7_ALREADY_FAILED",
-                    lei=attempt.lei,
-                    attempt_id=attempt_id,
-                )
+                self._log("T7_ALREADY_FAILED", lei=attempt.lei, attempt_id=attempt_id)
                 return MembraneResult(
                     Disposition.HOLD, AttemptState.FAILED.value,
                     attempt.receipt_observed, len(self.sink.effects),
@@ -477,5 +490,4 @@ class Membrane:
         )
 
     def retry_eligible_for(self, lei: str) -> bool:
-        """True if no attempt on LEI currently blocks a new attempt (T8-aware)."""
         return not self._has_unresolved(lei)
