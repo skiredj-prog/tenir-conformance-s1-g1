@@ -1,4 +1,4 @@
-"""RFC-4 membrane implementation (S1 + S2 + S3 + T7/T8)."""
+"""RFC-4 membrane implementation (S1–S4 + T7/T8)."""
 
 from .kernel_bridge import KernelBridge
 from .membrane import (
@@ -8,6 +8,7 @@ from .membrane import (
     AttemptState,
     DuplicateAttemptID,
     UnresolvedSameLEI,
+    StaleReceiptError,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "AttemptState",
     "DuplicateAttemptID",
     "UnresolvedSameLEI",
+    "StaleReceiptError",
 ]
