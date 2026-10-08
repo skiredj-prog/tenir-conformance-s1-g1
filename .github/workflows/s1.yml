@@ -52,6 +52,13 @@ jobs:
           path: artifacts/s1/
           if-no-files-found: warn
 
+      - name: Upload S2 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: s2-evidence
+          path: artifacts/s2/
+          if-no-files-found: warn
+
       - name: Upload S3 evidence
         uses: actions/upload-artifact@v4
         with:
