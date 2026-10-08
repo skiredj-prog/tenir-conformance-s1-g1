@@ -1,4 +1,4 @@
-"""RFC-4 property-preserving membrane (S1/S2/S3 + T7/T8)."""
+"""RFC-4 property-preserving membrane (S1–S4 + T7/T8)."""
 
 from __future__ import annotations
 
@@ -15,6 +15,10 @@ class DuplicateAttemptID(Exception):
 
 class UnresolvedSameLEI(Exception):
     """Raised when LEI is locked by an unresolved attempt (S3a–S3c)."""
+
+
+class StaleReceiptError(Exception):
+    """Raised when a receipt token is expired while the qualification window is still open (S4b)."""
 
 
 class Disposition(str, Enum):
@@ -68,6 +72,7 @@ class Attempt:
     await_until_ms: int | None = None
     retry_eligible: bool = False
     failure_reason: str | None = None
+    nonce: str = ""
 
 
 @dataclass
@@ -95,7 +100,7 @@ class MembraneResult:
 
 
 class Membrane:
-    """RFC-4 membrane: permit, attempt, receipt, tau_K, S3 barrier, T7/T8."""
+    """RFC-4 membrane: permit, attempt, receipt, tau_K, S3/S4 guards, T7/T8."""
 
     def __init__(
         self,
@@ -113,9 +118,7 @@ class Membrane:
         self.events: list[dict[str, Any]] = []
 
     def _log(self, event: str, **fields: Any) -> None:
-        self.events.append(
-            {"ts_ms": self.clock.now_ms, "event": event, **fields}
-        )
+        self.events.append({"ts_ms": self.clock.now_ms, "event": event, **fields})
 
     def _blocks_new_attempt(self, attempt: Attempt) -> bool:
         if attempt.state == AttemptState.RESOLVED:
@@ -126,8 +129,7 @@ class Membrane:
 
     def _has_unresolved(self, lei: str) -> bool:
         return any(
-            a.lei == lei and self._blocks_new_attempt(a)
-            for a in self.attempts.values()
+            a.lei == lei and self._blocks_new_attempt(a) for a in self.attempts.values()
         )
 
     def _client_projection(self, attempt: Attempt) -> tuple[Disposition, str]:
@@ -137,8 +139,7 @@ class Membrane:
             return Disposition.HOLD, AttemptState.FAILED.value
         return Disposition.HOLD, AttemptState.UNKNOWN.value
 
-    def _register_attempt(self, *, lei: str, attempt_id: str) -> Attempt:
-        """Entry barrier (G0 S3): unique attempt_id, then LEI exclusion."""
+    def _register_attempt(self, *, lei: str, attempt_id: str, nonce: str = "") -> Attempt:
         if attempt_id in self.attempts:
             self._log("S3_DUPLICATE_ATTEMPT_ID", lei=lei, attempt_id=attempt_id)
             raise DuplicateAttemptID(
@@ -146,20 +147,17 @@ class Membrane:
             )
         if self._has_unresolved(lei):
             self._log(
-                "T1_guard_FALSE",
-                lei=lei,
-                attempt_id=attempt_id,
-                reason="UNRESOLVED_SAME_LEI",
+                "T1_guard_FALSE", lei=lei, attempt_id=attempt_id, reason="UNRESOLVED_SAME_LEI"
             )
             raise UnresolvedSameLEI(
                 f"Registration rejected: LEI '{lei}' is locked by an unresolved attempt."
             )
-        attempt = Attempt(lei=lei, attempt_id=attempt_id)
+        attempt = Attempt(lei=lei, attempt_id=attempt_id, nonce=nonce)
         self.attempts[attempt_id] = attempt
         self.permits[attempt_id] = Permit(
             lei=lei, attempt_id=attempt_id, issued_at_ms=self.clock.now_ms
         )
-        self._log("PERMIT_ISSUED", lei=lei, attempt_id=attempt_id)
+        self._log("PERMIT_ISSUED", lei=lei, attempt_id=attempt_id, nonce=nonce)
         return attempt
 
     def process_transaction(
@@ -173,7 +171,7 @@ class Membrane:
         target_rejected: bool = False,
     ) -> MembraneResult:
         try:
-            attempt = self._register_attempt(lei=lei, attempt_id=attempt_id)
+            attempt = self._register_attempt(lei=lei, attempt_id=attempt_id, nonce="")
         except DuplicateAttemptID:
             return MembraneResult(
                 Disposition.HOLD, AttemptState.UNKNOWN.value, False,
@@ -265,9 +263,7 @@ class Membrane:
                 ),
                 events=[e["event"] for e in self.events],
             )
-        return self.process_transaction(
-            lei=lei, attempt_id=attempt_id, payload=payload
-        )
+        return self.process_transaction(lei=lei, attempt_id=attempt_id, payload=payload)
 
     def admit_and_await_qualification(
         self,
@@ -276,9 +272,10 @@ class Membrane:
         attempt_id: str,
         payload: Mapping[str, Any],
         apply_effect: bool = True,
+        nonce: str = "",
     ) -> MembraneResult:
         try:
-            attempt = self._register_attempt(lei=lei, attempt_id=attempt_id)
+            attempt = self._register_attempt(lei=lei, attempt_id=attempt_id, nonce=nonce)
         except DuplicateAttemptID:
             return MembraneResult(
                 Disposition.HOLD, AttemptState.UNKNOWN.value, False,
@@ -348,12 +345,20 @@ class Membrane:
         return fired
 
     def deliver_qualifying_receipt(
-        self, *, attempt_id: str, bound: bool = True
+        self,
+        *,
+        attempt_id: str,
+        bound: bool = True,
+        lei: str | None = None,
+        nonce: str | None = None,
+        expires_at_ms: int | None = None,
     ) -> MembraneResult:
+        """G0 S4 guard hierarchy: binding → window/terminal → token TTL → qualify."""
         if attempt_id not in self.attempts:
             raise KeyError(attempt_id)
         attempt = self.attempts[attempt_id]
         self.check_qualification_timeouts()
+        baseline_effects = len(self.sink.effects)
 
         if not bound:
             self._log("RECEIPT_REJECTED_UNBOUND", lei=attempt.lei, attempt_id=attempt_id)
@@ -363,8 +368,34 @@ class Membrane:
                 timeout_event=attempt.timeout_fired,
                 events=[e["event"] for e in self.events],
             )
+        if lei is not None and lei != attempt.lei:
+            self._log(
+                "RECEIPT_REJECTED_BINDING", lei=attempt.lei, attempt_id=attempt_id,
+                reason="LEI_MISMATCH",
+            )
+            disp, st = self._client_projection(attempt)
+            return MembraneResult(
+                disp, st, False, len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
+                timeout_event=attempt.timeout_fired,
+                events=[e["event"] for e in self.events],
+            )
+        if nonce is not None and attempt.nonce and nonce != attempt.nonce:
+            self._log(
+                "RECEIPT_REJECTED_BINDING", lei=attempt.lei, attempt_id=attempt_id,
+                reason="NONCE_MISMATCH",
+            )
+            disp, st = self._client_projection(attempt)
+            return MembraneResult(
+                disp, st, False, len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
+                timeout_event=attempt.timeout_fired,
+                events=[e["event"] for e in self.events],
+            )
 
         if attempt.timeout_fired or attempt.state == AttemptState.UNKNOWN:
+            self._log(
+                "RECEIPT_REJECTED", lei=attempt.lei, attempt_id=attempt_id,
+                reason="WINDOW_CLOSED",
+            )
             self._log(
                 "LATE_RECEIPT_AFTER_TIMEOUT_NO_AUTO_COMMIT",
                 lei=attempt.lei, attempt_id=attempt_id,
@@ -375,6 +406,30 @@ class Membrane:
                 disp, st, True, len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
                 timeout_event=True,
                 events=[e["event"] for e in self.events],
+            )
+        if attempt.state in (AttemptState.FAILED, AttemptState.RESOLVED):
+            self._log(
+                "RECEIPT_REJECTED", lei=attempt.lei, attempt_id=attempt_id,
+                reason="TERMINAL_LOCK", state=attempt.state.value,
+            )
+            disp, st = self._client_projection(attempt)
+            return MembraneResult(
+                disp, st, attempt.receipt_observed, len(self.sink.effects),
+                0.0, "NOT_EVALUATED", False,
+                timeout_event=attempt.timeout_fired,
+                events=[e["event"] for e in self.events],
+            )
+
+        if expires_at_ms is not None and self.clock.now_ms >= expires_at_ms:
+            self._log(
+                "STALE_RECEIPT", lei=attempt.lei, attempt_id=attempt_id,
+                expires_at_ms=expires_at_ms, now_ms=self.clock.now_ms,
+            )
+            attempt.state = AttemptState.UNKNOWN
+            attempt.receipt_observed = True
+            raise StaleReceiptError(
+                f"Receipt token expired for attempt '{attempt_id}' "
+                f"(expires_at_ms={expires_at_ms}, now_ms={self.clock.now_ms})."
             )
 
         if attempt.state == AttemptState.AWAITING_QUALIFICATION:
@@ -437,9 +492,7 @@ class Membrane:
                     events=[e["event"] for e in self.events],
                 )
             self._log(
-                "T7_REJECTED_BAD_STATE",
-                lei=attempt.lei,
-                attempt_id=attempt_id,
+                "T7_REJECTED_BAD_STATE", lei=attempt.lei, attempt_id=attempt_id,
                 state=attempt.state.value,
             )
             disp, st = self._client_projection(attempt)
@@ -451,9 +504,7 @@ class Membrane:
 
         if not evidence_qualified:
             self._log(
-                "T7_REJECTED_UNQUALIFIED_EVIDENCE",
-                lei=attempt.lei,
-                attempt_id=attempt_id,
+                "T7_REJECTED_UNQUALIFIED_EVIDENCE", lei=attempt.lei, attempt_id=attempt_id,
                 reason=reason,
             )
             disp, st = self._client_projection(attempt)
@@ -470,22 +521,13 @@ class Membrane:
         attempt.retry_eligible = retry_eligible
         attempt.failure_reason = reason
         self._log(
-            "T7_DECLARE_FAILED",
-            lei=attempt.lei,
-            attempt_id=attempt_id,
-            reason=reason,
-            retry_eligible=retry_eligible,
+            "T7_DECLARE_FAILED", lei=attempt.lei, attempt_id=attempt_id,
+            reason=reason, retry_eligible=retry_eligible,
         )
         return MembraneResult(
-            Disposition.HOLD,
-            AttemptState.FAILED.value,
-            attempt.receipt_observed,
-            len(self.sink.effects),
-            0.0,
-            "NOT_EVALUATED",
-            False,
-            timeout_event=attempt.timeout_fired,
-            retry_eligible=retry_eligible,
+            Disposition.HOLD, AttemptState.FAILED.value, attempt.receipt_observed,
+            len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
+            timeout_event=attempt.timeout_fired, retry_eligible=retry_eligible,
             events=[e["event"] for e in self.events],
         )
 
