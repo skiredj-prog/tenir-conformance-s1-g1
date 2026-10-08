@@ -104,17 +104,19 @@ def test_s4a_window_closed_late_receipt():
     clock = FakeClock(now_ms=1_000_000)
     m = _m(clock)
     m.admit_and_await_qualification(
-        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=False, nonce="n-s4a"
+        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=True, nonce="n-s4a"
     )
     assert m.attempts["A1"].state == AttemptState.AWAITING_QUALIFICATION
     baseline = len(m.sink.effects)
+    assert baseline == 1
     clock.advance_to(1_000_000 + TAU)
     m.check_qualification_timeouts()
     assert m.attempts["A1"].state == AttemptState.UNKNOWN
+    assert m.attempts["A1"].timeout_fired is True
     r = m.deliver_qualifying_receipt(attempt_id="A1", bound=True, lei="L", nonce="n-s4a")
     assert r.disposition.value == "HOLD"
     assert m.attempts["A1"].state != AttemptState.RESOLVED
-    assert len(m.sink.effects) == baseline
+    assert len(m.sink.effects) == baseline  # A3 strong: delta 0 with baseline>0
     events = [e["event"] for e in m.events]
     assert "RECEIPT_REJECTED" in events or "LATE_RECEIPT_AFTER_TIMEOUT_NO_AUTO_COMMIT" in events
     assert set(m.permits.keys()) == {"A1"}
@@ -127,9 +129,10 @@ def test_s4b_open_window_expired_token():
     clock = FakeClock(now_ms=1_000_000)
     m = _m(clock)
     m.admit_and_await_qualification(
-        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=False, nonce="n-s4b"
+        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=True, nonce="n-s4b"
     )
     baseline = len(m.sink.effects)
+    assert baseline == 1
     with pytest.raises(StaleReceiptError):
         m.deliver_qualifying_receipt(
             attempt_id="A1", bound=True, lei="L", nonce="n-s4b", expires_at_ms=1_000_000 - 1
@@ -158,3 +161,44 @@ def test_s4_spec_hashes():
     assert len(_spec_sha()) == 64
     assert len(_scenario_sha()) == 64
     assert json.loads(SCENARIO_PATH.read_text())["id"] == "S4"
+
+
+def test_s4_binding_mismatch_rejects():
+    """A6: wrong lei/nonce must reject without RESOLVED."""
+    clock = FakeClock(now_ms=1_000_000)
+    m = _m(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=True, nonce="n-ok"
+    )
+    baseline = len(m.sink.effects)
+    r = m.deliver_qualifying_receipt(
+        attempt_id="A1", bound=True, lei="WRONG", nonce="n-ok"
+    )
+    assert r.disposition.value == "HOLD"
+    assert m.attempts["A1"].state != AttemptState.RESOLVED
+    assert len(m.sink.effects) == baseline
+    assert "RECEIPT_REJECTED_BINDING" in [e["event"] for e in m.events]
+
+    r2 = m.deliver_qualifying_receipt(
+        attempt_id="A1", bound=True, lei="L", nonce="n-bad"
+    )
+    assert r2.disposition.value == "HOLD"
+    assert m.attempts["A1"].state != AttemptState.RESOLVED
+    assert len(m.sink.effects) == baseline
+
+
+def test_s4_stale_path_does_not_issue_new_permit():
+    """A5: after S4a reject, permit registry has only A1; not RESOLVED."""
+    clock = FakeClock(now_ms=1_000_000)
+    m = _m(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=True, nonce="n"
+    )
+    clock.advance_to(1_000_000 + TAU)
+    m.check_qualification_timeouts()
+    before = set(m.permits.keys())
+    m.deliver_qualifying_receipt(attempt_id="A1", bound=True, lei="L", nonce="n")
+    after = set(m.permits.keys())
+    assert after == before == {"A1"}
+    assert m.attempts["A1"].state != AttemptState.RESOLVED
+    assert m.permits["A1"].consumed is True
