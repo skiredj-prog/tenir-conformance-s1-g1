@@ -1,4 +1,4 @@
-"""RFC-4 property-preserving membrane (S1 ACK Loss + S2 Qualification Timeout)."""
+"""RFC-4 property-preserving membrane (S1/S2 + T7/T8 FAILED/retry_eligible)."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ class AttemptState(str, Enum):
     PENDING = "PENDING"
     AWAITING_QUALIFICATION = "AWAITING_QUALIFICATION"
     UNKNOWN = "UNKNOWN"
+    FAILED = "FAILED"
     RESOLVED = "RESOLVED"
 
 
@@ -57,6 +58,9 @@ class Attempt:
     qualified: bool = False
     timeout_fired: bool = False
     await_until_ms: int | None = None
+    # T7/T8: terminal failure and whether a new attempt on same LEI is allowed
+    retry_eligible: bool = False
+    failure_reason: str | None = None
 
 
 @dataclass
@@ -79,11 +83,12 @@ class MembraneResult:
     kernel_decision: str
     retry_permit_issued: bool
     timeout_event: bool = False
+    retry_eligible: bool | None = None
     events: list[str] = field(default_factory=list)
 
 
 class Membrane:
-    """RFC-4 membrane: permit, attempt, receipt, tau_K qualification window."""
+    """RFC-4 membrane: permit, attempt, receipt, tau_K, FAILED/retry_eligible."""
 
     def __init__(
         self,
@@ -105,15 +110,26 @@ class Membrane:
             {"ts_ms": self.clock.now_ms, "event": event, **fields}
         )
 
+    def _blocks_new_attempt(self, attempt: Attempt) -> bool:
+        """Return True if this attempt still blocks a new attempt on the same LEI."""
+        if attempt.state == AttemptState.RESOLVED:
+            return False
+        # T8: FAILED + retry_eligible allows a fresh attempt on the same LEI
+        if attempt.state == AttemptState.FAILED and attempt.retry_eligible:
+            return False
+        return True
+
     def _has_unresolved(self, lei: str) -> bool:
         return any(
-            a.lei == lei and a.state != AttemptState.RESOLVED
+            a.lei == lei and self._blocks_new_attempt(a)
             for a in self.attempts.values()
         )
 
     def _client_projection(self, attempt: Attempt) -> tuple[Disposition, str]:
         if attempt.state == AttemptState.RESOLVED and attempt.qualified:
             return Disposition.PASS, AttemptState.RESOLVED.value
+        if attempt.state == AttemptState.FAILED:
+            return Disposition.HOLD, AttemptState.FAILED.value
         return Disposition.HOLD, AttemptState.UNKNOWN.value
 
     def process_transaction(
@@ -350,3 +366,116 @@ class Membrane:
             timeout_event=attempt.timeout_fired,
             events=[e["event"] for e in self.events],
         )
+
+    # ── T7 / T8: qualified failure and retry eligibility ──────────────────────
+
+    def declare_failed(
+        self,
+        *,
+        attempt_id: str,
+        evidence_qualified: bool,
+        retry_eligible: bool = True,
+        reason: str = "QUALIFIED_NON_EXECUTION",
+    ) -> MembraneResult:
+        """
+        T7 — UNKNOWN → FAILED (requires evidence qualification guard).
+
+        Timeout alone must not call this path. A qualified outcome (e.g. proven
+        non-execution, or explicit governance authority) is required.
+        When retry_eligible=True (T8), a subsequent attempt on the same LEI is allowed.
+        """
+        if attempt_id not in self.attempts:
+            raise KeyError(attempt_id)
+        attempt = self.attempts[attempt_id]
+        self.check_qualification_timeouts()
+
+        if attempt.state == AttemptState.RESOLVED:
+            self._log(
+                "T7_REJECTED_ALREADY_RESOLVED",
+                lei=attempt.lei,
+                attempt_id=attempt_id,
+            )
+            disp, st = self._client_projection(attempt)
+            return MembraneResult(
+                disp, st, attempt.receipt_observed, len(self.sink.effects),
+                0.0, "NOT_EVALUATED", False,
+                timeout_event=attempt.timeout_fired,
+                retry_eligible=attempt.retry_eligible,
+                events=[e["event"] for e in self.events],
+            )
+
+        if attempt.state not in (
+            AttemptState.UNKNOWN,
+            AttemptState.AWAITING_QUALIFICATION,
+            AttemptState.PENDING,
+        ):
+            if attempt.state == AttemptState.FAILED:
+                self._log(
+                    "T7_ALREADY_FAILED",
+                    lei=attempt.lei,
+                    attempt_id=attempt_id,
+                )
+                return MembraneResult(
+                    Disposition.HOLD, AttemptState.FAILED.value,
+                    attempt.receipt_observed, len(self.sink.effects),
+                    0.0, "NOT_EVALUATED", False,
+                    timeout_event=attempt.timeout_fired,
+                    retry_eligible=attempt.retry_eligible,
+                    events=[e["event"] for e in self.events],
+                )
+            self._log(
+                "T7_REJECTED_BAD_STATE",
+                lei=attempt.lei,
+                attempt_id=attempt_id,
+                state=attempt.state.value,
+            )
+            disp, st = self._client_projection(attempt)
+            return MembraneResult(
+                disp, st, attempt.receipt_observed, len(self.sink.effects),
+                0.0, "NOT_EVALUATED", False,
+                events=[e["event"] for e in self.events],
+            )
+
+        if not evidence_qualified:
+            self._log(
+                "T7_REJECTED_UNQUALIFIED_EVIDENCE",
+                lei=attempt.lei,
+                attempt_id=attempt_id,
+                reason=reason,
+            )
+            disp, st = self._client_projection(attempt)
+            return MembraneResult(
+                disp, st, attempt.receipt_observed, len(self.sink.effects),
+                0.0, "NOT_EVALUATED", False,
+                timeout_event=attempt.timeout_fired,
+                retry_eligible=False,
+                events=[e["event"] for e in self.events],
+            )
+
+        attempt.state = AttemptState.FAILED
+        attempt.qualified = True
+        attempt.retry_eligible = retry_eligible
+        attempt.failure_reason = reason
+        self._log(
+            "T7_DECLARE_FAILED",
+            lei=attempt.lei,
+            attempt_id=attempt_id,
+            reason=reason,
+            retry_eligible=retry_eligible,
+        )
+        return MembraneResult(
+            Disposition.HOLD,
+            AttemptState.FAILED.value,
+            attempt.receipt_observed,
+            len(self.sink.effects),
+            0.0,
+            "NOT_EVALUATED",
+            False,
+            timeout_event=attempt.timeout_fired,
+            retry_eligible=retry_eligible,
+            events=[e["event"] for e in self.events],
+        )
+
+    def retry_eligible_for(self, lei: str) -> bool:
+        """True if no attempt on LEI currently blocks a new attempt (T8-aware)."""
+        return not self._has_unresolved(lei)
