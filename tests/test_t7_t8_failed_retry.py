@@ -4,6 +4,7 @@ from tenir_conformance.membrane.membrane import (
     FakeClock,
     Membrane,
     AttemptState,
+    Receipt,
 )
 from tenir_conformance.membrane.kernel_bridge import KernelBridge
 
@@ -135,10 +136,10 @@ def test_t7_rejected_on_resolved_attempt():
     clock = FakeClock(now_ms=1_000_000)
     m = _m(clock)
     m.admit_and_await_qualification(
-        lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=True
+        lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=True, nonce="n-t7"
     )
     clock.tick(100)
-    m.deliver_qualifying_receipt(attempt_id="A", bound=True)
+    m.deliver_qualifying_receipt(Receipt(attempt_id="A", lei="L", nonce="n-t7"))
     assert m.attempts["A"].state == AttemptState.RESOLVED
     m.declare_failed(attempt_id="A", evidence_qualified=True)
     assert m.attempts["A"].state == AttemptState.RESOLVED
