@@ -1,0 +1,48 @@
+{
+  "id": "G0_S6",
+  "title": "Successful Reconciliation & Terminal Convergence",
+  "version": "G0",
+  "locked_name": "Successful Reconciliation",
+  "implementation_status": "SPECIFICATION DRAFT / EMPIRICAL VALIDATION PENDING",
+  "claim": "Valid, non-contradictory evidence may converge an UNKNOWN attempt to RESOLVED or qualified FAILED without effects during reconciliation or reuse of the initial permit.",
+  "depends_on": [
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "T7",
+    "T8"
+  ],
+  "spec_path": "scenarios/G0_S6_SUCCESSFUL_RECONCILIATION.md",
+  "api_target": "reconcile",
+  "subcases": {
+    "S6a": {
+      "name": "successful_discovery_post_timeout",
+      "initial_state": "UNKNOWN",
+      "evidence_outcome": "COMMITTED",
+      "expected": "RESOLVED + RECONCILIATION_SUCCESS + effect_delta_0 + no_permit_reuse"
+    },
+    "S6b": {
+      "name": "failure_discovery_and_lei_unlock",
+      "initial_state": "UNKNOWN",
+      "evidence_outcome": "FAILED",
+      "expected": "FAILED + retry_eligible + A2_admitted_only_after_qualified_failure"
+    }
+  },
+  "invariants": [
+    "REG-CORE-020",
+    "REG-CORE-015",
+    "REG-CORE-001"
+  ],
+  "assertions": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7"
+  ],
+  "s5_decoupling": "S6 uses a dedicated observation API for singleton, unified evidence; contradictory batches remain under G0 S5.",
+  "claim_scope": "tested sequential interleavings only"
+}
