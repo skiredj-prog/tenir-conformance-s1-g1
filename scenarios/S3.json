@@ -1,0 +1,21 @@
+{
+  "id": "S3",
+  "title": "Duplicate Request",
+  "version": "G0",
+  "locked_name": "Duplicate Request",
+  "claim": "While LEI is locked by unresolved A1, concurrent A2 on same LEI is rejected at registration; attempt_id is globally unique.",
+  "depends_on": ["S1", "T7", "T8"],
+  "subcases": {
+    "S3a": {"name": "a1_awaiting_or_in_flight", "expected": "UnresolvedSameLEI"},
+    "S3b": {"name": "a1_executed_receipt_pending", "expected": "UnresolvedSameLEI"},
+    "S3c": {"name": "a1_unknown", "expected": "UnresolvedSameLEI"},
+    "S3d": {"name": "duplicate_attempt_id", "expected": "DuplicateAttemptID"}
+  },
+  "assertions": [
+    "A2 not in attempts registry",
+    "no permit for A2",
+    "effect_sink unchanged by A2",
+    "A1 state unchanged",
+    "T1_guard_FALSE or S3_DUPLICATE_ATTEMPT_ID in event log"
+  ]
+}
