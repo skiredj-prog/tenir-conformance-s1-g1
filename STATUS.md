@@ -1,29 +1,32 @@
 # Scientific status of this package
 
+**HEAD reference for this statement:** `487db4f` (update when re-validating).
+
 ## What this package establishes
 
-1. G0 for S1 is written as an explicit, reviewable operational definition.
-2. A G1 harness exists that realises those assertions.
-3. Six pytest tests pass against the harness.
-4. Evidence artifacts (JSONL, snapshots, scenario hash) are produced deterministically.
+1. **G0 operational definitions** for S1–S5 (ACK loss, qualification timeout, duplicate request, stale receipt, contradictory evidence).
+2. An **RFC-4 lab membrane** (`Membrane` + `Receipt` + escalation/quarantine) implementing the corresponding guards.
+3. **Empirical PASS** on sequential interleavings via CI (`Membrane CI (S1–S5 + T7/T8)`), including:
+   - S1 membrane path against a real `tenir_governance.PolicyEngine` for scoring
+   - S4 strict A6 (`Receipt` mandatory for RESOLVED; legacy kwargs cannot qualify)
+   - S5 contradiction → `ESCALATED` / LEI `QUARANTINED` with Δ effects = 0
+4. **Evidence artifacts** (JSON/JSONL, spec & scenario SHA-256) uploaded per family (`s1-evidence` … `s5-evidence`).
 
 ## What this package does **not** establish
 
-- That REG / TENIR / any real PolicyEngine behaves this way.
-- That a production gateway would return HOLD under S1a/S1b/S1c.
-- That S1 is “CONFORMING” for the protocol.
+- Safety under **unconstrained asynchronous concurrency**
+- **Production cryptographic** verification of evidence (signatures, PKI)
+- Correctness of **business-unit normalization** converters (mixed profiles are rejected; converters are not proven)
+- That any **production REG/TENIR gateway** is certified conformant
+- A formal mathematical proof (TLC / model checking of the full concurrent system)
 
-The harness currently hard-codes the expected client projection.  
-It is a useful executable specification, not a test of an independent subject.
+## Correct public statement
 
-## Required next step for genuine empirical evidence
+> G0 S1–S5 have been empirically validated against the RFC-4 lab membrane for the tested sequential interleavings, with CI artifacts. This is not a general concurrency proof and not a production certification.
 
-1. Extract this package into the real workspace.
-2. Replace `S1Gateway` internals with an adapter that calls the real kernel.
-3. Re-run the same G0 assertions against that kernel.
-4. Only then may a result be labelled “S1 empirical outcome against subject X”.
+## Next steps for stronger validation
 
-Until step 3–4 are done, the correct public statement is:
-
-> “G1 harness executes G0 assertions for S1.  
-> S1 has not yet been validated against a real REG/TENIR kernel.”
+1. G0 S6 — Successful reconciliation (terminal convergence without new effects).
+2. Minimal signed-evidence adapter (integrity not only injected).
+3. Export lifecycle vectors into `reg-conformance`.
+4. Keep this file in sync with each validation HEAD.
