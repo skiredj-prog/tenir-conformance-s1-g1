@@ -1,0 +1,34 @@
+{
+  "id": "G0_S5",
+  "title": "Contradictory Evidence & Epistemic Escalation",
+  "version": "G0",
+  "locked_name": "Contradictory Evidence",
+  "claim": "A contradictory complete evidence batch cannot commit, emit an effect, issue a new permit, or use an existing permit through this path; it records escalation.",
+  "depends_on": [
+    "S3",
+    "S4",
+    "T7",
+    "T8"
+  ],
+  "spec_path": "scenarios/G0_S5_CONTRADICTORY_EVIDENCE.md",
+  "subcases": {
+    "S5a": {
+      "name": "outcome_conflict_nonterminal",
+      "expected": "HOLD + ESCALATED + EVIDENCE_CONTRADICTION"
+    },
+    "S5b": {
+      "name": "property_conflict_terminal",
+      "expected": "HOLD + state_preserved + QUARANTINE_LOCK"
+    }
+  },
+  "assertions": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7"
+  ],
+  "claim_scope": "tested sequential interleavings only"
+}

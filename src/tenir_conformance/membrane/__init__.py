@@ -10,6 +10,10 @@ from .membrane import (
     DuplicateAttemptID,
     UnresolvedSameLEI,
     StaleReceiptError,
+    Evidence,
+    IncompleteEvidence,
+    BindingError,
+    ContradictoryEvidenceError,
 )
 
 __all__ = [
@@ -22,4 +26,8 @@ __all__ = [
     "DuplicateAttemptID",
     "UnresolvedSameLEI",
     "StaleReceiptError",
+    "Evidence",
+    "IncompleteEvidence",
+    "BindingError",
+    "ContradictoryEvidenceError",
 ]

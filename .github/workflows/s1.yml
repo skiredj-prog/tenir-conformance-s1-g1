@@ -42,6 +42,9 @@ jobs:
       - name: Run S4 Stale Receipt membrane tests
         run: python -m pytest tests/test_s4_stale_receipt.py -v --tb=short
 
+      - name: Run G0 S5 Contradictory Evidence tests
+        run: python -m pytest tests/test_g0_s5.py -v --tb=short
+
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
 
@@ -72,3 +75,10 @@ jobs:
           name: s4-evidence
           path: artifacts/s4/
           if-no-files-found: warn
+
+      - name: Upload S5 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: s5-evidence
+          path: artifacts/s5/
+          if-no-files-found: error
