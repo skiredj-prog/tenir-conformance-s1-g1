@@ -1,4 +1,4 @@
-name: Membrane CI (S1 + S2)
+name: Membrane CI (S1 + S2 + T7/T8)
 
 on:
   push:
@@ -32,6 +32,9 @@ jobs:
 
       - name: Run S2 Qualification Timeout membrane tests
         run: python -m pytest tests/test_s2_qualification_timeout.py -v --tb=short
+
+      - name: Run T7/T8 FAILED + retry_eligible tests
+        run: python -m pytest tests/test_t7_t8_failed_retry.py -v --tb=short
 
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
