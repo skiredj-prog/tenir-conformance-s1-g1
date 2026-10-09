@@ -284,7 +284,7 @@ def explore(depth, world_mode, max_states=2_000_000):
             except KeyError:
                 # Evidence events before their attempt exists are expected rejected
                 # moves in this exhaustive event alphabet. Keep the allowlist narrow.
-                if not (label.startswith("receipt(") or label.startswith("declare_failed(")):
+                if not (label.startswith(("receipt(", "declare_failed(", "reconcile(", "evidence_batch("))):
                     raise
                 dispatch = False
             except Exception:
