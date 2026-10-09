@@ -86,11 +86,13 @@ class Receipt:
 
 @dataclass(frozen=True)
 class Evidence:
-    """G0 S5 evidence item.
+    """G0 S5/S6 evidence item.
 
     The adapter must supply already-normalized properties and the upstream
-    verifier's integrity/source-authority results. The local conformance
-    harness does not itself perform cryptographic signature verification.
+    verifier's integrity/source-authority results. For S6 negative outcomes,
+    non_execution_confirmed is an upstream attestation that the external
+    operation produced no effect. This harness does not perform cryptographic
+    signature verification.
     """
 
     evidence_id: str
@@ -106,6 +108,9 @@ class Evidence:
     source_authoritative: bool
     expires_at_ms: int | None = None
     required_properties: tuple[str, ...] = ()
+    # Explicit upstream-verifier attestation that no external effect occurred.
+    # The harness validates this assertion's presence/type; it does not verify signatures.
+    non_execution_confirmed: bool = False
 
 
 @dataclass
@@ -146,7 +151,7 @@ class MembraneResult:
 
 
 class Membrane:
-    """RFC-4 membrane: permit, attempt, receipt, tau_K, S3/S4 guards, T7/T8."""
+    """RFC-4 membrane: permit, attempt, receipt, evidence, S3–S6 guards, T7/T8."""
 
     def __init__(self, bridge: KernelBridge, sink: EffectSink | None = None,
                  clock: FakeClock | None = None, tau_k_ms: int = 5_000,
@@ -505,6 +510,7 @@ class Membrane:
             "source_authoritative": evidence.source_authoritative,
             "expires_at_ms": evidence.expires_at_ms,
             "required_properties": list(evidence.required_properties),
+            "non_execution_confirmed": evidence.non_execution_confirmed,
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()
@@ -552,6 +558,10 @@ class Membrane:
             status = evidence.status.strip().upper()
             if status not in allowed_statuses:
                 raise IncompleteEvidence(f"Unsupported evidence status: {evidence.status}")
+            if not isinstance(evidence.non_execution_confirmed, bool):
+                raise IncompleteEvidence(
+                    f"Evidence non_execution_confirmed must be a boolean: {evidence.evidence_id}"
+                )
             if evidence.integrity_verified is not True:
                 raise IncompleteEvidence(f"Evidence integrity was not verified: {evidence.evidence_id}")
             if evidence.source_authoritative is not True:
@@ -747,6 +757,7 @@ class Membrane:
 
         if statuses == {"COMMITTED"}:
             attempt.state = AttemptState.RESOLVED
+            attempt.effect_observed = True  # bound evidence confirms the external effect
             attempt.qualified = True
             attempt.receipt_observed = True
             attempt.retry_eligible = False
@@ -768,13 +779,23 @@ class Membrane:
                 events=[event["event"] for event in self.events])
 
         if statuses in ({"FAILED"}, {"REJECTED"}):
+            if not all(evidence.non_execution_confirmed is True for evidence in batch):
+                self._log("EVIDENCE_BATCH_NON_EXECUTION_UNPROVEN", lei=attempt.lei,
+                          attempt_id=attempt.attempt_id,
+                          evidence_ids=sorted(evidence.evidence_id for evidence in batch))
+                return MembraneResult(Disposition.HOLD, self._client_projection(attempt)[1],
+                    attempt.receipt_observed, len(self.sink.effects), 0.0,
+                    "EVIDENCE_BATCH_NON_EXECUTION_UNPROVEN", False,
+                    timeout_event=attempt.timeout_fired, retry_eligible=False,
+                    events=[event["event"] for event in self.events])
             attempt.state = AttemptState.FAILED
             attempt.qualified = True
             attempt.retry_eligible = False
             attempt.failure_reason = "CONSISTENT_NEGATIVE_EVIDENCE"
             self._log("EVIDENCE_BATCH_RESOLVED_FAILED", lei=attempt.lei,
                       attempt_id=attempt.attempt_id,
-                      evidence_ids=sorted(evidence.evidence_id for evidence in batch))
+                      evidence_ids=sorted(evidence.evidence_id for evidence in batch),
+                      non_execution_confirmed=True)
             return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value, True,
                 len(self.sink.effects), 0.0, "EVIDENCE_BATCH_FAILED", False,
                 retry_eligible=False, events=[event["event"] for event in self.events])
@@ -786,6 +807,128 @@ class Membrane:
         return MembraneResult(Disposition.HOLD, self._client_projection(attempt)[1],
             attempt.receipt_observed, len(self.sink.effects), 0.0,
             "EVIDENCE_BATCH_INCONCLUSIVE", False,
+            events=[event["event"] for event in self.events])
+
+
+    def reconcile(
+        self,
+        *,
+        attempt_id: str,
+        evidence: Evidence,
+        retry_eligible: bool = True,
+    ) -> MembraneResult:
+        """Reconcile a past external outcome without executing or issuing permits.
+
+        Evidence integrity/source authority are upstream-verifier assertions. For
+        FAILED, non_execution_confirmed must explicitly attest that no external
+        effect occurred. This method never invokes the kernel or EffectSink.
+        """
+        if attempt_id not in self.attempts:
+            raise KeyError(attempt_id)
+        if not isinstance(retry_eligible, bool):
+            raise TypeError("retry_eligible must be a bool annotation")
+
+        attempt = self.attempts[attempt_id]
+        batch = self._validate_evidence_batch(attempt, (evidence,))
+        item = batch[0]
+        outcome = item.status.strip().upper()
+
+        if outcome not in {"COMMITTED", "FAILED"}:
+            self._log("RECONCILIATION_INCONCLUSIVE", lei=attempt.lei,
+                      attempt_id=attempt_id, evidence_id=item.evidence_id,
+                      outcome=outcome)
+            disp, state = self._client_projection(attempt)
+            return MembraneResult(disp, state, attempt.receipt_observed,
+                len(self.sink.effects), 0.0, "RECONCILIATION_INCONCLUSIVE", False,
+                timeout_event=attempt.timeout_fired, retry_eligible=attempt.retry_eligible,
+                events=[event["event"] for event in self.events])
+
+        if outcome == "FAILED" and item.non_execution_confirmed is not True:
+            self._log("RECONCILIATION_REJECTED_NO_NON_EXECUTION_PROOF",
+                      lei=attempt.lei, attempt_id=attempt_id,
+                      evidence_id=item.evidence_id)
+            disp, state = self._client_projection(attempt)
+            return MembraneResult(disp, state, attempt.receipt_observed,
+                len(self.sink.effects), 0.0,
+                "RECONCILIATION_NO_NON_EXECUTION_PROOF", False,
+                timeout_event=attempt.timeout_fired, retry_eligible=False,
+                events=[event["event"] for event in self.events])
+
+        # Do not overwrite terminal outcomes. Matching evidence is idempotent;
+        # an opposite outcome fails closed without mutating terminal state.
+        if attempt.state in (AttemptState.FAILED, AttemptState.RESOLVED):
+            consistent = (
+                (attempt.state == AttemptState.RESOLVED and outcome == "COMMITTED"
+                 and attempt.effect_observed)
+                or (attempt.state == AttemptState.FAILED and outcome == "FAILED"
+                    and item.non_execution_confirmed is True
+                    and not attempt.effect_observed)
+            )
+            if consistent:
+                self._log("RECONCILIATION_IDEMPOTENT_ACK", lei=attempt.lei,
+                          attempt_id=attempt_id, evidence_id=item.evidence_id,
+                          outcome=outcome, state=attempt.state.value)
+                disp, state = self._client_projection(attempt)
+                return MembraneResult(disp, state, attempt.receipt_observed,
+                    len(self.sink.effects), 0.0, "RECONCILIATION_IDEMPOTENT_ACK", False,
+                    timeout_event=attempt.timeout_fired, retry_eligible=attempt.retry_eligible,
+                    events=[event["event"] for event in self.events])
+            # Route contradictions against an already terminal outcome through S5;
+            # preserve the terminal state and fail closed under governance quarantine.
+            return self._record_evidence_contradiction(attempt, [{
+                "kind": "TerminalOutcomeConflict",
+                "evidence_ids": [item.evidence_id],
+                "left_status": attempt.state.value,
+                "right_status": outcome,
+            }])
+
+        if attempt.state != AttemptState.UNKNOWN:
+            self._log("RECONCILIATION_REJECTED_BAD_STATE", lei=attempt.lei,
+                      attempt_id=attempt_id, state=attempt.state.value,
+                      outcome=outcome)
+            disp, state = self._client_projection(attempt)
+            return MembraneResult(Disposition.HOLD, state, attempt.receipt_observed,
+                len(self.sink.effects), 0.0, "RECONCILIATION_BAD_STATE", False,
+                timeout_event=attempt.timeout_fired, retry_eligible=False,
+                events=[event["event"] for event in self.events])
+
+        if outcome == "COMMITTED":
+            attempt.state = AttemptState.RESOLVED
+            attempt.effect_observed = True  # confirmed by the bound external evidence
+            attempt.qualified = True
+            attempt.retry_eligible = False
+            attempt.failure_reason = None
+            self._log("RECONCILIATION_SUCCESS", lei=attempt.lei,
+                      attempt_id=attempt_id, evidence_id=item.evidence_id,
+                      outcome=outcome, non_execution_confirmed=False)
+            return MembraneResult(Disposition.PASS, AttemptState.RESOLVED.value,
+                attempt.receipt_observed, len(self.sink.effects), 0.0,
+                "RECONCILIATION_SUCCESS", False,
+                timeout_event=attempt.timeout_fired, retry_eligible=False,
+                events=[event["event"] for event in self.events])
+
+        if attempt.effect_observed:
+            self._log("RECONCILIATION_NEGATIVE_CONTRADICTS_OBSERVED_EFFECT",
+                      lei=attempt.lei, attempt_id=attempt_id,
+                      evidence_id=item.evidence_id)
+            return MembraneResult(Disposition.HOLD, self._client_projection(attempt)[1],
+                attempt.receipt_observed, len(self.sink.effects), 0.0,
+                "RECONCILIATION_CONTRADICTS_OBSERVED_EFFECT", False,
+                timeout_event=attempt.timeout_fired, retry_eligible=False,
+                events=[event["event"] for event in self.events])
+
+        attempt.state = AttemptState.FAILED
+        attempt.qualified = True
+        attempt.retry_eligible = retry_eligible  # audit/policy annotation only
+        attempt.failure_reason = "RECONCILIATION_CONFIRMED_NON_EXECUTION"
+        self._log("RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION",
+                  lei=attempt.lei, attempt_id=attempt_id,
+                  evidence_id=item.evidence_id, outcome=outcome,
+                  non_execution_confirmed=True, retry_eligible=retry_eligible)
+        return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value,
+            attempt.receipt_observed, len(self.sink.effects), 0.0,
+            "RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION", False,
+            timeout_event=attempt.timeout_fired, retry_eligible=retry_eligible,
             events=[event["event"] for event in self.events])
 
     def resolve_governance_quarantine(

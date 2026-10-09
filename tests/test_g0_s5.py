@@ -293,6 +293,7 @@ def test_s5_consistent_batch_can_follow_normal_resolution_path():
 
     assert result.disposition.value == "PASS"
     assert m.attempts["A1"].state == AttemptState.RESOLVED
+    assert m.attempts["A1"].effect_observed is True
     assert len(m.sink.effects) == before_effects
     assert not m.governance_quarantine
     assert not any(e["event"] == "EVIDENCE_CONTRADICTION" for e in m.events)
