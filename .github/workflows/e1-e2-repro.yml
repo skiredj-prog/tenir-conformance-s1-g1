@@ -21,12 +21,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Restore exact membrane source commit from manifest
+      - name: Restore manuscript-pinned membrane source commit (Appendix A)
         run: |
-          git checkout 3ef1d45e2c393ef2490a90760a75247f8aca5ee2 -- pyproject.toml src/tenir_conformance
+          git checkout 84e46d94a6259ad1ec57757074a422d2f356ec49 -- pyproject.toml src/tenir_conformance
           python --version
           git rev-parse HEAD
-          git rev-parse 3ef1d45e2c393ef2490a90760a75247f8aca5ee2
+          git rev-parse 84e46d94a6259ad1ec57757074a422d2f356ec49
       - name: Re-run E1 and compare committed output
         continue-on-error: true
         run: |
