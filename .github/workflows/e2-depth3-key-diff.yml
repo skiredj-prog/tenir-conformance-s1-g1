@@ -109,7 +109,7 @@ def _e2_retry(m, **kwargs):
           marker = "def build_events(world_mode):"
           if nonce_src.count(marker) != 1:
               raise SystemExit("Could not locate build_events for nonce adapter")
-          nonce_src = nonce_src.replace(marker, helpers + "\\n" + marker, 1)
+          nonce_src = nonce_src.replace(marker, helpers + "\n" + marker, 1)
           Path("/tmp/e2_explore_keys_nonce.py").write_text(nonce_src, encoding="utf-8")
           print("Created exact-key instrument plus an API-adapted nonce variant.")
           PY
