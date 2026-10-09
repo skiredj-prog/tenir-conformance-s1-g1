@@ -54,7 +54,7 @@ jobs:
           # Batch-fetch contents once to avoid spawning one process per object.
           proc = subprocess.run(
               ["git", "cat-file", "--batch"],
-              input="".join(oid + "\\n" for oid in blob_oids).encode("ascii"),
+              input="".join(oid + "\n" for oid in blob_oids).encode("ascii"),
               check=True, capture_output=True,
           )
           data = proc.stdout
@@ -62,7 +62,7 @@ jobs:
           found = {key: [] for key in targets}
           object_sizes = {}
           for expected_oid in blob_oids:
-              end = data.find(b"\\n", pos)
+              end = data.find(b"\n", pos)
               if end < 0:
                   raise RuntimeError(f"Malformed cat-file header at byte {pos}")
               header = data[pos:end].decode("ascii").split()
@@ -72,7 +72,7 @@ jobs:
               size = int(size_text)
               start = end + 1
               blob = data[start:start + size]
-              if len(blob) != size or data[start + size:start + size + 1] != b"\\n":
+              if len(blob) != size or data[start + size:start + size + 1] != b"\n":
                   raise RuntimeError(f"Malformed blob payload for {oid}")
               digest = hashlib.sha256(blob).hexdigest()
               object_sizes[oid] = size
@@ -92,8 +92,19 @@ jobs:
               "scope": "all Git objects available in this checkout after fetch-depth: 0 across advertised branches and tags; not server-side dangling objects omitted by Git fetch",
           }
           report = Path(os.environ["RUNNER_TEMP"]) / "e2-provenance-scan.json"
-          report.write_text(json.dumps(result, indent=2) + "\\n", encoding="utf-8")
+          report.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
           print(json.dumps(result, indent=2))
+          for digest, rows in found.items():
+              for row in rows:
+                  oid = row["git_blob_oid"]
+                  print(f"GIT_BLOB_OID {digest} {oid}")
+                  history = subprocess.run(
+                      ["git", "log", "--all", f"--find-object={oid}", "--oneline"],
+                      check=True, capture_output=True, text=True,
+                  ).stdout
+                  print("GIT_LOG_FIND_OBJECT_BEGIN")
+                  print(history or "(no reachable commit names this object)")
+                  print("GIT_LOG_FIND_OBJECT_END")
           if not found["e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a9d8"]:
               raise SystemExit("Known current script digest not found: scanner control failed")
           PY
