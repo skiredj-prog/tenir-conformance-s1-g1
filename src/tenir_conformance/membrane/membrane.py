@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import threading
@@ -226,6 +227,32 @@ class Membrane:
         self.trust_root = load_trust_root(trust_root)
         # Fail closed: quarantine release requires an injected authority check.
         self.quarantine_release_authorizer = quarantine_release_authorizer
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "Membrane":
+        """Clone explorer state without copying the process-local synchronization lock.
+
+        A copied membrane receives a fresh lock. This preserves the single-threaded
+        explicit-state explorer's semantics without sharing synchronization state
+        between cloned instances.
+        """
+        existing = memo.get(id(self))
+        if existing is not None:
+            return existing
+        cls = self.__class__
+        new = cls.__new__(cls)
+        memo[id(self)] = new
+        for key, value in self.__dict__.items():
+            if key == "_admission_lock":
+                # Keep the original non-reentrant synchronization semantics.
+                setattr(new, key, threading.Lock())
+            elif key == "bridge":
+                # E2 deliberately shares the immutable/stateless kernel bridge
+                # across cloned explorer states via memo={id(bridge): bridge}.
+                # Preserve that identity here as well.
+                setattr(new, key, value)
+            else:
+                setattr(new, key, copy.deepcopy(value, memo))
+        return new
 
     def _log(self, event: str, **fields: Any) -> None:
         self.events.append({"ts_ms": self.clock.now_ms, "event": event, **fields})
@@ -469,17 +496,23 @@ class Membrane:
                 return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                     len(self.sink.effects), 0.0, "UNKNOWN_TARGET_REALM", False,
                     events=[e["event"] for e in self.events])
-            if not realm_policy.admits(
+            refusal_reason = realm_policy.refusal_reason(
                 action_class=transition.action_class,
                 principal=transition.principal,
                 declared_postconditions=transition.target_postconditions,
-            ):
+                declared_effect_attributes=getattr(transition, "declared_effect_attributes", None),
+                declared_exposure=getattr(transition, "declared_exposure", None),
+            )
+            if refusal_reason is not None:
                 self._log("TARGET_REALM_POLICY_REJECTED", lei=lei, attempt_id=attempt_id,
                           target_realm=transition.target_realm, action_class=transition.action_class,
                           principal=transition.principal,
-                          declared_postconditions=list(transition.target_postconditions))
+                          declared_postconditions=list(transition.target_postconditions),
+                          reason=refusal_reason)
+                public_reason = (refusal_reason if refusal_reason.startswith("REALM_INVARIANT_VIOLATED:")
+                                 else "TARGET_REALM_POLICY_REJECTED")
                 return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
-                    len(self.sink.effects), 0.0, "TARGET_REALM_POLICY_REJECTED", False,
+                    len(self.sink.effects), 0.0, public_reason, False,
                     events=[e["event"] for e in self.events])
         allowed_sources = transition.scope.get("source_realms")
         if allowed_sources is not None and transition.source_realm not in allowed_sources:
