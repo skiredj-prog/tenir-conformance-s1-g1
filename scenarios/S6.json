@@ -3,8 +3,8 @@
   "title": "Successful Reconciliation & Terminal Convergence",
   "version": "G0",
   "locked_name": "Successful Reconciliation",
-  "implementation_status": "SPECIFICATION DRAFT / EMPIRICAL VALIDATION PENDING",
-  "claim": "Valid, non-contradictory evidence may converge an UNKNOWN attempt to RESOLVED or qualified FAILED without effects during reconciliation or reuse of the initial permit.",
+  "implementation_status": "IMPLEMENTATION IN PR / EMPIRICAL VALIDATION PENDING",
+  "claim": "Valid, bound evidence may converge UNKNOWN to RESOLVED or FAILED without effects during reconciliation or reuse of the initial permit; FAILED unlock requires explicit non-execution confirmation and no observed effect.",
   "depends_on": [
     "S2",
     "S3",
@@ -26,7 +26,7 @@
       "name": "failure_discovery_and_lei_unlock",
       "initial_state": "UNKNOWN",
       "evidence_outcome": "FAILED",
-      "expected": "FAILED + retry_eligible + A2_admitted_only_after_qualified_failure"
+      "expected": "FAILED + non_execution_confirmed + effect_delta_0 + no_permit_reuse; retry_eligible is annotation only"
     }
   },
   "invariants": [
@@ -43,6 +43,6 @@
     "A6",
     "A7"
   ],
-  "s5_decoupling": "S6 uses a dedicated observation API for singleton, unified evidence; contradictory batches remain under G0 S5.",
+  "s5_decoupling": "S6 uses a dedicated observation API for singleton, unified evidence; contradictory batches remain under G0 S5. FAILED requires non_execution_confirmed=true; retry_eligible is metadata, not the lock predicate.",
   "claim_scope": "tested sequential interleavings only"
 }
