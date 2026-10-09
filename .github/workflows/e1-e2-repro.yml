@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - repro/e1-e2-20261009
+      - test/e2-strict-harness-20261009
 
 permissions:
   contents: read
