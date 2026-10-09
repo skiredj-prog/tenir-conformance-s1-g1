@@ -69,7 +69,7 @@ def test_nd1_same_realm_id_different_invariants_and_max_exposure_diverge():
     permissive_verdict, permissive_reason = _run(permissive)
     restrictive_verdict, restrictive_reason = _run(restrictive)
     assert permissive_verdict == Disposition.PASS, (permissive_verdict, permissive_reason)
-    assert restrictive_verdict == Disposition.HOLD, (restrictive_verdict, restrictive_reason)
+    assert restrictive_verdict == Disposition.HARD_VETO, (restrictive_verdict, restrictive_reason)
     assert permissive_verdict != restrictive_verdict
     assert restrictive_reason == "REALM_INVARIANT_VIOLATED:MAX_EXPOSURE"
 
