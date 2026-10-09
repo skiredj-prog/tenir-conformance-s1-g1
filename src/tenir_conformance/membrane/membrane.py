@@ -755,6 +755,7 @@ class Membrane:
 
         if statuses == {"COMMITTED"}:
             attempt.state = AttemptState.RESOLVED
+            attempt.effect_observed = True  # bound evidence confirms the external effect
             attempt.qualified = True
             attempt.receipt_observed = True
             attempt.retry_eligible = False
