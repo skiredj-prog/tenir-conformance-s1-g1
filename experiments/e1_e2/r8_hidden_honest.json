@@ -1,0 +1,31 @@
+{
+  "world": "hidden_honest",
+  "depth": 8,
+  "distinct_states": 49502,
+  "transitions_checked": 981615,
+  "new_states_by_depth": {
+    "0": 1,
+    "1": 17,
+    "2": 84,
+    "3": 328,
+    "4": 1020,
+    "5": 2794,
+    "6": 6660,
+    "7": 13901,
+    "8": 24697
+  },
+  "violations": {},
+  "shortest_counterexamples": {},
+  "n_event_types": 40,
+  "seconds": 112.2,
+  "invariants": [
+    "I1 effect-at-most-once (ground truth)",
+    "I2 permit single-use",
+    "I3 terminal immutability",
+    "I4 only dispatch appends effects",
+    "I5 FAILED => no observed effect",
+    "I6 no admission under quarantine",
+    "I7 admission only after FAILED-without-effect",
+    "I8 attempt record permanence"
+  ]
+}

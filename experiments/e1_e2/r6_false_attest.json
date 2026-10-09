@@ -1,0 +1,29 @@
+{
+  "world": "false_attest",
+  "depth": 6,
+  "distinct_states": 14446,
+  "transitions_checked": 179590,
+  "new_states_by_depth": {
+    "0": 1,
+    "1": 15,
+    "2": 72,
+    "3": 298,
+    "4": 1038,
+    "5": 3332,
+    "6": 9690
+  },
+  "violations": {},
+  "shortest_counterexamples": {},
+  "n_event_types": 38,
+  "seconds": 19.0,
+  "invariants": [
+    "I1 effect-at-most-once (ground truth)",
+    "I2 permit single-use",
+    "I3 terminal immutability",
+    "I4 only dispatch appends effects",
+    "I5 FAILED => no observed effect",
+    "I6 no admission under quarantine",
+    "I7 admission only after FAILED-without-effect",
+    "I8 attempt record permanence"
+  ]
+}

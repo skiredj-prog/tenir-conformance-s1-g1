@@ -1,0 +1,40 @@
+{
+  "world": "adversarial",
+  "depth": 6,
+  "distinct_states": 30485,
+  "transitions_checked": 344512,
+  "new_states_by_depth": {
+    "0": 1,
+    "1": 17,
+    "2": 92,
+    "3": 424,
+    "4": 1705,
+    "5": 6418,
+    "6": 21828
+  },
+  "violations": {
+    "I1": 42934
+  },
+  "shortest_counterexamples": {
+    "I1": {
+      "trace": [
+        "admit_await(A1,HIDDEN_effect)",
+        "declare_failed(A1,qualified=True)",
+        "process(A2,ok)"
+      ],
+      "msg": "world effects for LEI = 2 (>1)"
+    }
+  },
+  "n_event_types": 40,
+  "seconds": 37.2,
+  "invariants": [
+    "I1 effect-at-most-once (ground truth)",
+    "I2 permit single-use",
+    "I3 terminal immutability",
+    "I4 only dispatch appends effects",
+    "I5 FAILED => no observed effect",
+    "I6 no admission under quarantine",
+    "I7 admission only after FAILED-without-effect",
+    "I8 attempt record permanence"
+  ]
+}
