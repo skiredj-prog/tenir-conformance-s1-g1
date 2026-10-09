@@ -86,11 +86,13 @@ class Receipt:
 
 @dataclass(frozen=True)
 class Evidence:
-    """G0 S5 evidence item.
+    """G0 S5/S6 evidence item.
 
     The adapter must supply already-normalized properties and the upstream
-    verifier's integrity/source-authority results. The local conformance
-    harness does not itself perform cryptographic signature verification.
+    verifier's integrity/source-authority results. For S6 negative outcomes,
+    non_execution_confirmed is an upstream attestation that the external
+    operation produced no effect. This harness does not perform cryptographic
+    signature verification.
     """
 
     evidence_id: str
@@ -149,7 +151,7 @@ class MembraneResult:
 
 
 class Membrane:
-    """RFC-4 membrane: permit, attempt, receipt, tau_K, S3/S4 guards, T7/T8."""
+    """RFC-4 membrane: permit, attempt, receipt, evidence, S3–S6 guards, T7/T8."""
 
     def __init__(self, bridge: KernelBridge, sink: EffectSink | None = None,
                  clock: FakeClock | None = None, tau_k_ms: int = 5_000,
