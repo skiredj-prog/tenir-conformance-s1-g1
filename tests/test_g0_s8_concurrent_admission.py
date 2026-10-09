@@ -177,3 +177,46 @@ def test_s8f_retry_after_resolved_winner_is_held_to_prevent_second_effect():
     assert retry.disposition.value == "HOLD"
     assert set(membrane.attempts) == {"A1"}
     assert len(membrane.sink.effects) == 1
+
+
+
+def test_s8c_racing_consumers_cannot_consume_same_permit_or_dispatch_twice():
+    membrane = Membrane(KernelBridge())
+    attempt = membrane._register_attempt(
+        lei="L", attempt_id="A1", nonce="nonce-A1", issue_permit=True
+    )
+    start = threading.Barrier(3)
+    successes = []
+    failures = []
+    lock = threading.Lock()
+
+    def consumer():
+        start.wait(timeout=5)
+        try:
+            membrane._consume_permit(attempt)
+            membrane.sink.apply("L", "A1", PAYLOAD)
+            with lock:
+                successes.append(True)
+        except ValueError as exc:
+            with lock:
+                failures.append(str(exc))
+
+    threads = [
+        threading.Thread(target=consumer, name="T1"),
+        threading.Thread(target=consumer, name="T2"),
+    ]
+    for thread in threads:
+        thread.start()
+    start.wait(timeout=5)
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert len(successes) == 1
+    assert failures == ["PERMIT_ALREADY_CONSUMED"]
+    assert membrane.permits["A1"].consumed is True
+    assert len(membrane.sink.effects) == 1
+    assert sum(e["event"] == "PERMIT_CONSUMED" for e in membrane.events) == 1
+    assert sum(
+        e.get("reason") == "PERMIT_ALREADY_CONSUMED" for e in membrane.events
+    ) == 1
