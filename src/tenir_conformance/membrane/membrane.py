@@ -488,6 +488,33 @@ class Membrane:
             return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                 len(self.sink.effects), 0.0, "TARGET_POSTCONDITIONS_UNDECLARED", False,
                 events=[e["event"] for e in self.events])
+        # If a signed source-Realm policy is configured, record its independent
+        # admissibility result. Source admissibility does not imply target-crossing
+        # admissibility; the target policy is evaluated separately below.
+        if transition.source_realm in self.realm_policies:
+            source_policy = self.realm_policies[transition.source_realm]
+            source_reason = source_policy.refusal_reason(
+                action_class=transition.action_class,
+                principal=transition.principal,
+                declared_postconditions=transition.source_preconditions,
+                declared_effect_attributes=getattr(transition, "declared_effect_attributes", None),
+                declared_exposure=getattr(transition, "declared_exposure", None),
+            )
+            self._log("SOURCE_REALM_ADMISSIBILITY_EVALUATED", lei=lei, attempt_id=attempt_id,
+                      source_realm=transition.source_realm,
+                      verdict="PASS" if source_reason is None else "REJECT",
+                      reason=source_reason)
+            if source_reason is not None:
+                source_hard_veto = (
+                    source_reason.startswith("REALM_INVARIANT_VIOLATED:")
+                    or source_reason in {"PRINCIPAL_NOT_ALLOWED", "ACTION_CLASS_NOT_ALLOWED"}
+                )
+                return MembraneResult(
+                    Disposition.HARD_VETO if source_hard_veto else Disposition.HOLD,
+                    AttemptState.UNKNOWN.value, False, len(self.sink.effects), 0.0,
+                    source_reason if source_hard_veto else "SOURCE_REALM_POLICY_REJECTED", False,
+                    events=[e["event"] for e in self.events],
+                )
         if transition.target_realm != "legacy":
             realm_policy = self.realm_policies.get(transition.target_realm)
             if realm_policy is None:
@@ -509,11 +536,17 @@ class Membrane:
                           principal=transition.principal,
                           declared_postconditions=list(transition.target_postconditions),
                           reason=refusal_reason)
-                public_reason = (refusal_reason if refusal_reason.startswith("REALM_INVARIANT_VIOLATED:")
+                hard_veto = (
+                    refusal_reason.startswith("REALM_INVARIANT_VIOLATED:")
+                    or refusal_reason in {"PRINCIPAL_NOT_ALLOWED", "ACTION_CLASS_NOT_ALLOWED"}
+                )
+                public_reason = (refusal_reason if hard_veto
                                  else "TARGET_REALM_POLICY_REJECTED")
-                return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
-                    len(self.sink.effects), 0.0, public_reason, False,
-                    events=[e["event"] for e in self.events])
+                return MembraneResult(
+                    Disposition.HARD_VETO if hard_veto else Disposition.HOLD,
+                    AttemptState.UNKNOWN.value, False, len(self.sink.effects), 0.0,
+                    public_reason, False, events=[e["event"] for e in self.events],
+                )
         allowed_sources = transition.scope.get("source_realms")
         if allowed_sources is not None and transition.source_realm not in allowed_sources:
             return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
