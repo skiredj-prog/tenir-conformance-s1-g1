@@ -2,13 +2,15 @@
 
 This record separates the historical reference from the current membrane. Counts are meaningful only together with the exact explorer and membrane revisions that produced them.
 
-## v1 — pre-S7 reference (HYPOTHESIS; reproduction pending)
+## v1 — pre-PR#6 historical reference (HYPOTHESIS; unrecoverable)
 
 - Expected depth-8 count: **36,892**.
 - Candidate membrane revision: `84e46d94a6259ad1ec57757074a422d2f356ec49` (the S6 merge; pre-S7 according to the project chronology).
 - Status: **HYPOTHESIS**, not reproduced from a pinned historical explorer + membrane pair.
 - The tree at `84e46d94` does **not** contain `experiments/e1_e2/e2_explore.py`. A controlled compatibility probe overlaid the current explorer onto that commit and failed immediately with `TypeError: Membrane.process_transaction() got an unexpected keyword argument 'nonce'`. This confirms the current explorer cannot be run unchanged against the pre-S7 API.
-- The historical explorer that produced 36,892 must be recovered to reproduce v1 faithfully. Do not describe 36,892 as reproduced until that evidence exists. The probe is recorded in [Run #8](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37959380491).
+V1 was produced against a pre-PR#6 membrane by an explorer that was not committed. Neither artifact is recoverable. The 36,892 figure is preserved as historical evidence, not as a reproducible reference.
+
+- The current explorer is not compatible with that pre-PR#6 API (`nonce` is not accepted). Stop attempting to reproduce v1. The compatibility probe is recorded in [Run #8](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37959380491).
 
 ## v2 — current diagnostic branch (CURRENT)
 
