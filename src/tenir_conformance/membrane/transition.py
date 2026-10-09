@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import hashlib
-import json
+import rfc8785
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
 
@@ -11,7 +11,9 @@ def _json_value(value: Any) -> Any:
     if isinstance(value, bytes):
         return {"__bytes_hex__": value.hex()}
     if isinstance(value, Mapping):
-        return {str(k): _json_value(v) for k, v in value.items()}
+        if any(not isinstance(k, str) for k in value):
+            raise TypeError("JCS_OBJECT_KEYS_MUST_BE_STRINGS")
+        return {k: _json_value(v) for k, v in value.items()}
     if isinstance(value, (tuple, list)):
         return [_json_value(v) for v in value]
     if value is None or isinstance(value, (str, int, float, bool)):
@@ -20,10 +22,9 @@ def _json_value(value: Any) -> Any:
 
 
 def canonical_bytes(value: Any) -> bytes:
-    """Canonical UTF-8 JSON: sorted keys, compact separators, no NaN."""
+    """Return RFC 8785 JSON Canonicalization Scheme UTF-8 bytes."""
     normalized = _json_value(value)
-    return json.dumps(normalized, sort_keys=True, separators=(",", ":"),
-                      ensure_ascii=False, allow_nan=False).encode("utf-8")
+    return rfc8785.dumps(normalized)
 
 
 @dataclass(frozen=True)
