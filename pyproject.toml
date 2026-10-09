@@ -23,4 +23,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-"tenir_conformance.membrane" = ["trust_root.yaml"]
+"tenir_conformance.membrane" = ["trust_root.yaml", "tau.yaml"]
