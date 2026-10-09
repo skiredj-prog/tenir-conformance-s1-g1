@@ -29,6 +29,14 @@
     "S8-H1-intended-only": {
       "expected_status": "PASS",
       "required_actions_subsequence": []
+    },
+    "H4-signature-not-standing": {
+      "expected_status": "FAIL",
+      "required_actions_subsequence": ["admit_collapse_crypto", "execute"]
+    },
+    "H4-intended-only": {
+      "expected_status": "PASS",
+      "required_actions_subsequence": []
     }
   }
 }
