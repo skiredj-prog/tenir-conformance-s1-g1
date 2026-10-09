@@ -1,0 +1,37 @@
+name: E2 adversarial first-violation depth scan
+
+on:
+  push:
+    branches: ["diagnostic/e2-adversarial-depth-2026-10-09"]
+
+jobs:
+  explore:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        depth: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: pip install -e .
+      - name: Record revision and script digest
+        run: |
+          git rev-parse HEAD
+          sha256sum experiments/e1_e2/e2_explore.py
+      - name: Explore adversarial world
+        env:
+          PYTHONHASHSEED: "0"
+          DEPTH: ${{ matrix.depth }}
+        run: |
+          PYTHONPATH=src python experiments/e1_e2/e2_explore.py --world adversarial --depth "$DEPTH" --out "/tmp/e2-adversarial-depth-$DEPTH.json"
+          cat "/tmp/e2-adversarial-depth-$DEPTH.json"
+      - name: Upload depth result
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2-adversarial-depth-${{ matrix.depth }}
+          path: /tmp/e2-adversarial-depth-${{ matrix.depth }}.json
+          if-no-files-found: error
