@@ -21,6 +21,7 @@ from tenir_conformance.membrane.membrane import (
     UnresolvedSameLEI,
 )
 from tenir_conformance.membrane.kernel_bridge import KernelBridge
+from s7_helpers import sign_attestation
 
 PAYLOAD = {"P": 0.5, "V": 0.5, "K": 1.0, "option_space": 1.0}
 ROOT = Path(__file__).resolve().parents[1]
@@ -294,7 +295,12 @@ def test_s3_after_t8_eligible_new_id_allowed():
         lei="L", attempt_id="A1", payload=PAYLOAD, request_lost=True
     )
     m.declare_failed(
-        attempt_id="A1", evidence_qualified=True, retry_eligible=True
+        attempt_id="A1", evidence_qualified=True,
+        attestation=sign_attestation(
+            attestation_id="AT-S3-T8",
+            attempt_id="A1", lei="L", nonce="n-s3-process_transaction-04",
+        ),
+        retry_eligible=True,
     )
     m._register_attempt(lei="L", attempt_id="A2")
     assert "A2" in m.attempts
