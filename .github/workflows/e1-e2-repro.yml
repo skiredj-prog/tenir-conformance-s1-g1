@@ -1,0 +1,71 @@
+name: Temporary E1/E2 reproducibility check
+
+on:
+  push:
+    branches:
+      - repro/e1-e2-20261009
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout experiment snapshot
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Restore exact membrane source commit from manifest
+        run: |
+          git checkout 3ef1d45e2c393ef2490a90760a75247f8aca5ee2 -- pyproject.toml src/tenir_conformance
+          python --version
+          git rev-parse HEAD
+          git rev-parse 3ef1d45e2c393ef2490a90760a75247f8aca5ee2
+      - name: Re-run E1 and compare committed output
+        run: |
+          set -o pipefail
+          PYTHONPATH=src python experiments/e1_e2/e1_baseline.py | tee /tmp/e1_actual.txt
+          diff -u experiments/e1_e2/e1_results.txt /tmp/e1_actual.txt
+      - name: Re-run E2 four bounded worlds
+        run: |
+          mkdir -p /tmp/e1-e2-repro
+          PYTHONPATH=src python experiments/e1_e2/e2_explore.py --depth 6 --world adversarial --out /tmp/e1-e2-repro/r6_adversarial.json
+          PYTHONPATH=src python experiments/e1_e2/e2_explore.py --depth 6 --world false_attest --out /tmp/e1-e2-repro/r6_false_attest.json
+          PYTHONPATH=src python experiments/e1_e2/e2_explore.py --depth 8 --world honest --out /tmp/e1-e2-repro/r8_honest.json
+          PYTHONPATH=src python experiments/e1_e2/e2_explore.py --depth 8 --world hidden_honest --out /tmp/e1-e2-repro/r8_hidden_honest.json
+      - name: Compare E2 outputs (excluding nondeterministic runtime)
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          pairs = [
+              ("r6_adversarial.json", "r6_adversarial.json"),
+              ("r6_false_attest.json", "r6_false_attest.json"),
+              ("r8_honest.json", "r8_honest.json"),
+              ("r8_hidden_honest.json", "r8_hidden_honest.json"),
+          ]
+          for expected_name, actual_name in pairs:
+              expected = json.loads(Path("experiments/e1_e2", expected_name).read_text())
+              actual = json.loads(Path("/tmp/e1-e2-repro", actual_name).read_text())
+              expected.pop("seconds", None)
+              actual.pop("seconds", None)
+              if expected != actual:
+                  print(f"FAIL: {expected_name}")
+                  print("expected:", json.dumps(expected, sort_keys=True))
+                  print("actual:", json.dumps(actual, sort_keys=True))
+                  raise SystemExit(1)
+              print(f"PASS: {expected_name} (all fields match except seconds)")
+          PY
+      - name: Upload reproduction outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e1-e2-reproduction
+          path: |
+            /tmp/e1_actual.txt
+            /tmp/e1-e2-repro/
+          if-no-files-found: warn
