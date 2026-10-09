@@ -10,13 +10,51 @@ from pathlib import Path
 
 import pytest
 
-from tenir_conformance.membrane import Disposition, Membrane, Transition, canonical_bytes, canonical_hash, payload_sha256
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from tenir_conformance.membrane import Disposition, Membrane, RealmPolicy, Transition, canonical_bytes, canonical_hash, payload_sha256
 from tenir_conformance.membrane.kernel_bridge import KernelDecision
+from tenir_conformance.membrane.membrane import EffectSink
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "scenarios" / "G0_S11_TRANSITION_OBJECT.md"
 ARTIFACTS = ROOT / "artifacts" / "s11"
 PAYLOAD = {"P": 0.5, "V": 0.5, "K": 1.0, "option_space": 1.0}
+
+
+_TEST_SEED = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+_TEST_PUBLIC_KEY = "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+_TEST_SIGNER = "TENIR-CONFORMANCE-TEST-ROOT"
+
+
+def signed_realm_manifest(realm_id, *, actions=("default",), principals=("default",), postconditions=("effect-applied",)):
+    core = {
+        "schema": "tenir.realm-policy.v1",
+        "realm_id": realm_id,
+        "version": "1.0.0",
+        "signed_by": _TEST_SIGNER,
+        "policy": {
+            "allowed_action_classes": list(actions),
+            "allowed_principals": list(principals),
+            "required_postconditions": list(postconditions),
+        },
+    }
+    digest = hashlib.sha256(canonical_bytes(core)).hexdigest()
+    signed_payload = canonical_bytes({"manifest": core, "sha256": digest})
+    private_key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(_TEST_SEED))
+    return {
+        **core,
+        "manifest_sha256": digest,
+        "signature": {
+            "algorithm": "Ed25519",
+            "key_id": _TEST_SIGNER,
+            "signature_hex": private_key.sign(signed_payload).hex(),
+        },
+    }
+
+
+def signed_realm_policy(realm_id, **kwargs):
+    return RealmPolicy.load(signed_realm_manifest(realm_id, **kwargs), public_key_hex=_TEST_PUBLIC_KEY)
 
 
 class CountingBridge:
@@ -61,11 +99,7 @@ def record(case, expected, actual, *, kernel_calls, transition=None, details=Non
 def invoke(transition, *, bridge=None, payload=PAYLOAD, realm_policies=None, **kwargs):
     bridge = bridge or CountingBridge()
     policies = realm_policies if realm_policies is not None else {
-        "B": {
-            "allowed_action_classes": ["default"],
-            "allowed_principals": ["default"],
-            "required_postconditions": ["effect-applied"],
-        }
+        "B": signed_realm_policy("B")
     }
     membrane = Membrane(bridge, realm_policies=policies)
     result = membrane.process_transaction(
@@ -190,10 +224,8 @@ def test_s11h_target_realm_policy_controls_admission():
     allowed = make_transition(target="B")
     denied = make_transition(target="C")
     policies = {
-        "B": {"allowed_action_classes": ["default"], "allowed_principals": ["default"],
-              "required_postconditions": ["effect-applied"]},
-        "C": {"allowed_action_classes": ["other"], "allowed_principals": ["default"],
-              "required_postconditions": ["effect-applied"]},
+        "B": signed_realm_policy("B"),
+        "C": signed_realm_policy("C", actions=("other",)),
     }
     allow_result, allow_bridge, _ = invoke(allowed, realm_policies=policies)
     deny_result, deny_bridge, _ = invoke(denied, realm_policies=policies)
@@ -230,13 +262,88 @@ def test_s11i_effect_boundary_records_commit_bound_to_transition_and_payload():
            details={"commit_hash": commit["commit_hash"]})
 
 
-def test_s11j_rfc8785_canonical_bytes_match_jcs_basic_vector():
+def test_s11j_rfc8785_canonical_bytes_match_jcs_vectors():
     assert canonical_bytes({"b": 2, "a": 1}) == b'{"a":1,"b":2}'
     assert canonical_bytes({"x": 1.0}) == b'{"x":1}'
+    assert canonical_bytes({
+        "numbers": [333333333.33333329, 1e30, 4.50, 2e-3, 1e-27]
+    }) == b'{"numbers":[333333333.3333333,1e+30,4.5,0.002,1e-27]}'
+    assert canonical_bytes({"\u20ac": "Euro Sign", "\r": "Carriage Return"}) == b'{"\\r":"Carriage Return","\xe2\x82\xac":"Euro Sign"}'
     with pytest.raises(TypeError, match="JCS_OBJECT_KEYS_MUST_BE_STRINGS"):
         canonical_bytes({1: "not-a-string-key"})
-    record("S11j", "RFC 8785 basic JCS vectors match", "PASS",
+    with pytest.raises((ValueError, TypeError)):
+        canonical_bytes({"not-finite": float("nan")})
+    record("S11j", "RFC 8785 numeric, key-order and UTF-8 vectors match", "PASS",
            kernel_calls=0, transition=make_transition())
+
+
+def test_s11l_realm_manifest_hash_and_signature_are_verified():
+    manifest = signed_realm_manifest("B")
+    loaded = RealmPolicy.load(manifest, public_key_hex=_TEST_PUBLIC_KEY)
+    assert loaded.verified is True
+    assert loaded.realm_id == "B"
+    tampered = signed_realm_manifest("B")
+    tampered["policy"]["allowed_principals"] = ["attacker"]
+    with pytest.raises(ValueError, match="REALM_POLICY_HASH_MISMATCH"):
+        RealmPolicy.load(tampered, public_key_hex=_TEST_PUBLIC_KEY)
+    bad_signature = signed_realm_manifest("B")
+    bad_signature["signature"]["signature_hex"] = "00" * 64
+    with pytest.raises(ValueError, match="REALM_POLICY_SIGNATURE_INVALID"):
+        RealmPolicy.load(bad_signature, public_key_hex=_TEST_PUBLIC_KEY)
+    record("S11l", "signed Realm manifest verified; tampering rejected", "PASS",
+           kernel_calls=0, transition=make_transition())
+
+
+def test_s11m_membrane_rejects_unsigned_realm_policy_mapping():
+    with pytest.raises(ValueError, match="REALM_POLICY_MUST_BE_SIGNATURE_VERIFIED"):
+        Membrane(CountingBridge(), realm_policies={"B": {
+            "allowed_action_classes": ["default"],
+            "allowed_principals": ["default"],
+            "required_postconditions": ["effect-applied"],
+        }})
+
+
+def test_s11n_realm_policy_verified_flag_cannot_be_set_by_constructor():
+    with pytest.raises(TypeError, match="verified"):
+        RealmPolicy(
+            realm_id="B",
+            version="1.0.0",
+            signed_by="attacker",
+            allowed_action_classes=("default",),
+            allowed_principals=("default",),
+            required_postconditions=("effect-applied",),
+            manifest_sha256="0" * 64,
+            verified=True,
+        )
+
+
+def test_s11o_effect_sink_rejects_commit_with_wrong_payload_digest():
+    transition = make_transition()
+    expected_hash = canonical_hash(transition)
+    actual_digest = payload_sha256(PAYLOAD)
+    commit_record = {
+        "schema": "tenir.execution-commit.v1",
+        "attempt_id": "S11-A1",
+        "nonce": "n1",
+        "tau_id": transition.tau_id,
+        "target_realm": transition.target_realm,
+        "transition_hash": expected_hash,
+        "payload_digest": "0" * 64,
+    }
+    commit = {
+        **commit_record,
+        "commit_hash": hashlib.sha256(canonical_bytes(commit_record)).hexdigest(),
+    }
+    sink = EffectSink()
+    with pytest.raises(ValueError, match="EXECUTION_COMMIT_PAYLOAD_MISMATCH"):
+        sink.apply(
+            "LEI-1", "S11-A1", PAYLOAD,
+            transition=transition,
+            expected_transition_hash=expected_hash,
+            expected_payload_digest=actual_digest,
+            execution_commit=commit,
+        )
+    assert sink.effects == []
 
 
 def test_s11k_transition_mutation_during_kernel_evaluation_blocks_effect():
