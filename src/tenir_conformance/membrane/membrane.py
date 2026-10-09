@@ -13,7 +13,7 @@ from typing import Any, Callable, Mapping, Sequence
 from .attestation import NonExecutionAttestation, load_trust_root, verify_attestation
 from .kernel_bridge import KernelBridge
 from .tau_contract import TAUContract
-from .transition import Transition, canonical_hash, payload_sha256
+from .transition import Transition, canonical_bytes, canonical_hash, payload_sha256
 
 
 class DuplicateAttemptID(Exception):
@@ -139,7 +139,16 @@ class Attempt:
 class EffectSink:
     effects: list[dict[str, Any]] = field(default_factory=list)
 
-    def apply(self, lei: str, attempt_id: str, payload: Mapping[str, Any]) -> None:
+    def apply(self, lei: str, attempt_id: str, payload: Mapping[str, Any], *,
+              transition: Transition | None = None,
+              expected_transition_hash: str | None = None,
+              expected_payload_digest: str | None = None) -> None:
+        # Verify the immutable admission binding at the effect boundary itself.
+        if transition is not None:
+            if expected_transition_hash is None or canonical_hash(transition) != expected_transition_hash:
+                raise ValueError("EXECUTION_COMMIT_TRANSITION_MISMATCH")
+        if expected_payload_digest is not None and payload_sha256(payload) != expected_payload_digest:
+            raise ValueError("EXECUTION_COMMIT_PAYLOAD_MISMATCH")
         self.effects.append({"lei": lei, "attempt_id": attempt_id, "payload": dict(payload)})
 
 
@@ -165,9 +174,12 @@ class Membrane:
                  conflict_sensitive_properties: set[str] | frozenset[str] | None = None,
                  quarantine_release_authorizer: Callable[[str, str], bool] | None = None,
                  trust_root: Mapping[str, Any] | str | Path | None = None,
-                 tau_contract: TAUContract | Mapping[str, Any] | str | Path | None = "default") -> None:
+                 tau_contract: TAUContract | Mapping[str, Any] | str | Path | None = "default",
+                 realm_policies: Mapping[str, Mapping[str, Any]] | None = None) -> None:
         # A signed TAU contract is loaded and verified before the membrane can start.
         self.tau_contract = TAUContract.load(tau_contract)
+        self.realm_policies = {str(name): dict(policy) for name, policy in (realm_policies or {}).items()}
+        self.execution_commits: list[dict[str, Any]] = []
         self.bridge = bridge
         self.sink = sink or EffectSink()
         self.clock = clock or FakeClock()
@@ -407,6 +419,30 @@ class Membrane:
                 events=[e["event"] for e in self.events])
         # The governed object's identity and scope are checked before registration
         # and before the kernel. Payload digest binding prevents substitution.
+        if transition.target_realm != "legacy":
+            realm_policy = self.realm_policies.get(transition.target_realm)
+            if realm_policy is None:
+                self._log("TARGET_REALM_REJECTED", lei=lei, attempt_id=attempt_id,
+                          target_realm=transition.target_realm, reason="UNKNOWN_TARGET_REALM")
+                return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                    len(self.sink.effects), 0.0, "UNKNOWN_TARGET_REALM", False,
+                    events=[e["event"] for e in self.events])
+            allowed_actions = realm_policy.get("allowed_action_classes")
+            allowed_principals = realm_policy.get("allowed_principals")
+            required_postconditions = realm_policy.get("required_postconditions", [])
+            if (not isinstance(allowed_actions, (list, tuple, set, frozenset))
+                    or transition.action_class not in allowed_actions
+                    or not isinstance(allowed_principals, (list, tuple, set, frozenset))
+                    or transition.principal not in allowed_principals
+                    or not isinstance(required_postconditions, (list, tuple, set, frozenset))
+                    or not set(required_postconditions).issubset(set(transition.target_postconditions))):
+                self._log("TARGET_REALM_POLICY_REJECTED", lei=lei, attempt_id=attempt_id,
+                          target_realm=transition.target_realm, action_class=transition.action_class,
+                          principal=transition.principal,
+                          declared_postconditions=list(transition.target_postconditions))
+                return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                    len(self.sink.effects), 0.0, "TARGET_REALM_POLICY_REJECTED", False,
+                    events=[e["event"] for e in self.events])
         if transition.tau_id != self.tau_contract.tau_id:
             return MembraneResult(Disposition.HARD_VETO, AttemptState.UNKNOWN.value, False,
                 len(self.sink.effects), 0.0, "TRANSITION_TAU_MISMATCH", False,
@@ -507,7 +543,34 @@ class Membrane:
             return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value, True,
                 len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
                 events=[e["event"] for e in self.events])
-        self.sink.apply(lei, attempt_id, payload)
+        # Create an execution commitment over the admitted transition, target,
+        # payload, attempt identity and nonce. The sink independently rechecks
+        # transition/payload binding immediately before recording the effect.
+        commit_record = {
+            "schema": "tenir.execution-commit.v1",
+            "attempt_id": attempt_id,
+            "nonce": nonce,
+            "tau_id": transition.tau_id,
+            "target_realm": transition.target_realm,
+            "transition_hash": transition_hash,
+            "payload_digest": expected_digest,
+        }
+        commit_hash = hashlib.sha256(canonical_bytes(commit_record)).hexdigest()
+        self.execution_commits.append({**commit_record, "commit_hash": commit_hash})
+        self._log("EXECUTION_COMMIT_CREATED", lei=lei, attempt_id=attempt_id,
+                  target_realm=transition.target_realm, transition_hash=transition_hash,
+                  payload_digest=expected_digest, commit_hash=commit_hash)
+        try:
+            self.sink.apply(lei, attempt_id, payload, transition=transition,
+                            expected_transition_hash=transition_hash,
+                            expected_payload_digest=expected_digest)
+        except ValueError as exc:
+            reason = str(exc)
+            self._log("EXECUTION_COMMIT_REJECTED", lei=lei, attempt_id=attempt_id,
+                      reason=reason, commit_hash=commit_hash)
+            return MembraneResult(Disposition.HARD_VETO, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), kd.score, reason, False,
+                events=[e["event"] for e in self.events])
         attempt.effect_observed = True
         self._log("EFFECT_APPLIED", lei=lei, attempt_id=attempt_id,
                   transition_hash=transition_hash)
