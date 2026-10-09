@@ -1,0 +1,42 @@
+name: E2 caller nonce and exception diagnostic
+
+on:
+  push:
+    branches:
+      - "diagnostic/e2-caller-nonce-and-exceptions-2026-10-09"
+    paths:
+      - ".github/workflows/e2-caller-nonce-diagnostic.yml"
+      - "experiments/e1_e2/e2_explore.py"
+
+permissions:
+  contents: read
+
+jobs:
+  e2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e ".[test]"
+      - name: Record exact script hash
+        run: sha256sum experiments/e1_e2/e2_explore.py
+      - name: Honest depth 1
+        env:
+          PYTHONHASHSEED: "0"
+        run: python experiments/e1_e2/e2_explore.py --world honest --depth 1 --out /tmp/e2-honest-depth1.json
+      - name: Honest depth 8
+        env:
+          PYTHONHASHSEED: "0"
+        run: python experiments/e1_e2/e2_explore.py --world honest --depth 8 --out /tmp/e2-honest-depth8.json
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2-caller-nonce-diagnostic
+          path: |
+            /tmp/e2-honest-depth1.json
+            /tmp/e2-honest-depth8.json
+          if-no-files-found: error
