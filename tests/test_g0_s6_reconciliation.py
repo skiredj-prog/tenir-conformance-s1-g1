@@ -388,10 +388,13 @@ def test_s6_reconciliation_is_idempotent_and_terminal_conflict_fails_closed():
         ),
     )
     assert conflicting.disposition.value == "HOLD"
-    assert conflicting.kernel_decision == "RECONCILIATION_TERMINAL_CONFLICT"
+    assert conflicting.kernel_decision == "EVIDENCE_CONTRADICTION"
     assert m.attempts["A1"].state == AttemptState.RESOLVED
     assert len(m.sink.effects) == effects_after_first
-    assert _permit_snapshot(m) == permits_after_first
+    assert m.governance_quarantine["L"]["state"] == "QUARANTINED"
+    assert m.permits["A1"].revoked is True
+    assert _permit_snapshot(m) != permits_after_first
+    assert "EVIDENCE_CONTRADICTION" in [e["event"] for e in m.events]
 
 
 def test_s6_spec_and_scenario_are_versioned_and_hashed():
