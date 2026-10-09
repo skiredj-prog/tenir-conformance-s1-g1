@@ -3,7 +3,7 @@ S1 G0+G1 executable harness for REG/TENIR — Evidence Lost After Commit (candid
 
 ## S11 scope and limitations
 
-> **Trust anchor.** `RealmPolicy.load()` currently accepts the public key from the caller. A signed trust-root lookup is not yet implemented. Until it is, the caller controls what is trusted.
+> **Trust anchor.** The signed Realm-manifest loader (introduced in follow-up PR #13) accepts the public key from the caller. A signed trust-root lookup is not yet implemented. Until it is, the caller controls what is trusted.
 >
 > **Key rotation and revocation.** Not implemented. A key accepted at load time remains trusted for the lifetime of the process.
 >
