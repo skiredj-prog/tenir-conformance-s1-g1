@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "purpose": "Aggregate manifest for G0 S1-S6 empirical lab validation",
   "repository": "https://github.com/skiredj-prog/tenir-conformance-s1-g1",
-  "validated_source_commit": "84e46d94a6259ad1ec57757074a422d2f356ec49",
+  "validated_source_commit": "07b5f315bbbaab7649e6ae9049445913de141f25",
   "pull_request": {
     "number": 4,
     "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/pull/4",
@@ -11,9 +11,9 @@
   },
   "validation": {
     "workflow": "Membrane CI (S1–S6 + T7/T8)",
-    "run_number": 56,
-    "run_id": 37865202825,
-    "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37865202825",
+    "run_number": 58,
+    "run_id": 37865306599,
+    "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37865306599",
     "event": "push",
     "result": "success",
     "test_scope": [
@@ -63,57 +63,57 @@
     {
       "id": "S6_specification",
       "path": "scenarios/G0_S6_SUCCESSFUL_RECONCILIATION.md",
-      "git_blob_sha1": "4d8508514c9297434458c43acb93cdb08f914426"
+      "git_blob_sha1": "42b90ffc7bcbad11f7dc8217389592028198962b"
     }
   ],
   "evidence_artifacts": [
     {
       "scenario": "S1",
       "name": "s1-evidence",
-      "artifact_id": 11588235615,
-      "archive_sha256": "c71ea8e6afb4597370fb8214d1218e133773c8718f0e6778feddc13aadef9691",
+      "artifact_id": 11587764362,
+      "archive_sha256": "b8c76f79d38be110c699139d53a633acff4eca6cc17c3ed694e67013367f5a00",
       "size_bytes": 4758,
-      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588235615/zip"
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11587764362/zip"
     },
     {
       "scenario": "S2",
       "name": "s2-evidence",
-      "artifact_id": 11587764157,
-      "archive_sha256": "6de6a61692aebc05c45bd81e27090a6918875d44c3175955400e1d2f850109b0",
+      "artifact_id": 11588096171,
+      "archive_sha256": "a8d1ea48ceccbd582c95cac36514536514579069e01036f16458b8a1ed46d9a8",
       "size_bytes": 5284,
-      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11587764157/zip"
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588096171/zip"
     },
     {
       "scenario": "S3",
       "name": "s3-evidence",
-      "artifact_id": 11587749328,
-      "archive_sha256": "bf0ef634413701a64b0a76726810fff8792d6515f8069bf8c955a322a4b61d48",
-      "size_bytes": 6624,
-      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11587749328/zip"
+      "artifact_id": 11587639767,
+      "archive_sha256": "95216b2e436148ed7c12a1520b73d16de67236d4cb88e2e9fbf0aef0e2713b21",
+      "size_bytes": 6626,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11587639767/zip"
     },
     {
       "scenario": "S4",
       "name": "s4-evidence",
-      "artifact_id": 11588300377,
-      "archive_sha256": "942cbb4fda7565c48d7b7c545e0219a8fd9654c3bbda0966762f1b4dc8759d2a",
-      "size_bytes": 3525,
-      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588300377/zip"
+      "artifact_id": 11588176030,
+      "archive_sha256": "c3b12f898db9cb19920141083ee8035ee25a869014523e22cc007ed2e25d1adb",
+      "size_bytes": 3526,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588176030/zip"
     },
     {
       "scenario": "S5",
       "name": "s5-evidence",
-      "artifact_id": 11588021152,
-      "archive_sha256": "3c8ce83c04ea2a0bcab8efcca04a4733d185b794fff5eed4e93c2ecb9d9f4c84",
-      "size_bytes": 3958,
-      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588021152/zip"
+      "artifact_id": 11588031352,
+      "archive_sha256": "c2bec7e168754463c6673547a174f91118a5827f8eeeb6b4512d2af275f9adcd",
+      "size_bytes": 3961,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588031352/zip"
     },
     {
       "scenario": "S6",
       "name": "s6-evidence",
-      "artifact_id": 11588150721,
-      "archive_sha256": "4bedf478a7f296e47e2a3021c7a8cb894b1d90c18f9459ad4605ce43943f0971",
-      "size_bytes": 6157,
-      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588150721/zip"
+      "artifact_id": 11588340487,
+      "archive_sha256": "8f66e77b2de32db2b09e0909232ebea9ea5388778d94ea891d82491a4eb12b64",
+      "size_bytes": 6155,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588340487/zip"
     }
   ],
   "limitations": [
