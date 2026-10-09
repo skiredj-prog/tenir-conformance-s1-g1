@@ -1,0 +1,34 @@
+name: E2 pre-S8 differential baseline
+
+on:
+  push:
+    branches:
+      - debug/e2-pres8-baseline
+
+jobs:
+  e2-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: pip install -e ".[test]"
+      - name: Record exact baseline inputs
+        run: |
+          git rev-parse HEAD
+          sha256sum src/tenir_conformance/membrane/membrane.py experiments/e1_e2/e2_explore.py
+      - name: Run honest E2 at depth 8
+        run: |
+          python experiments/e1_e2/e2_explore.py --depth 8 --world honest --out /tmp/e2-honest-baseline.json
+          python - <<'PY'
+          import json
+          p = "/tmp/e2-honest-baseline.json"
+          r = json.load(open(p, encoding="utf-8"))
+          print("BASELINE distinct_states:", r["distinct_states"])
+          print("BASELINE transitions_checked:", r["transitions_checked"])
+          print("BASELINE new_states_by_depth:", json.dumps(r["new_states_by_depth"], sort_keys=True))
+          print("BASELINE violations:", json.dumps(r["violations"], sort_keys=True))
+          assert r["distinct_states"] == 36892, f'expected 36892, got {r["distinct_states"]}'
+          PY
