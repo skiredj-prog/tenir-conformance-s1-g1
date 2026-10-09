@@ -1,6 +1,11 @@
 name: E2 depth-3 key differential
 
 on:
+  push:
+    branches:
+      - "diagnostic/e2-depth3-key-diff-2026-10-09"
+    paths:
+      - ".github/workflows/e2-depth3-key-diff.yml"
   pull_request:
     paths:
       - ".github/workflows/e2-depth3-key-diff.yml"
