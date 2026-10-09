@@ -73,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           for world in honest false_attest hidden_honest adversarial; do
-            python experiments/e1_e2/e2_explore.py --depth 6 --world "$world" --out "/tmp/e2-$world.json"
+            python experiments/e1_e2/e2_explore.py --depth 8 --world "$world" --out "/tmp/e2-$world.json"
           done
           python - <<'PY'
           import json
