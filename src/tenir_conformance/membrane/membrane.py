@@ -12,6 +12,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .attestation import NonExecutionAttestation, load_trust_root, verify_attestation
 from .kernel_bridge import KernelBridge
+from .tau_contract import TAUContract
 
 
 class DuplicateAttemptID(Exception):
@@ -162,7 +163,10 @@ class Membrane:
                  clock: FakeClock | None = None, tau_k_ms: int = 5_000,
                  conflict_sensitive_properties: set[str] | frozenset[str] | None = None,
                  quarantine_release_authorizer: Callable[[str, str], bool] | None = None,
-                 trust_root: Mapping[str, Any] | str | Path | None = None) -> None:
+                 trust_root: Mapping[str, Any] | str | Path | None = None,
+                 tau_contract: TAUContract | Mapping[str, Any] | str | Path | None = "default") -> None:
+        # A signed TAU contract is loaded and verified before the membrane can start.
+        self.tau_contract = TAUContract.load(tau_contract)
         self.bridge = bridge
         self.sink = sink or EffectSink()
         self.clock = clock or FakeClock()
@@ -357,9 +361,27 @@ class Membrane:
     def process_transaction(self, *, lei: str, attempt_id: str, payload: Mapping[str, Any],
                             nonce: str = "", request_lost: bool = False,
                             receipt_lost: bool = False,
-                            target_rejected: bool = False) -> MembraneResult:
+                            target_rejected: bool = False,
+                            action_class: str | None = None,
+                            principal: str | None = None) -> MembraneResult:
         if not isinstance(nonce, str) or not nonce.strip():
             raise ValueError("NONCE_REQUIRED")
+        # TAU scope is checked before attempt registration and before kernel evaluation.
+        resolved_action = payload.get("action_class", "default") if action_class is None else action_class
+        resolved_principal = payload.get("principal", "default") if principal is None else principal
+        in_scope, scope_reason = self.tau_contract.scope_check(
+            lei=lei, action_class=resolved_action, principal=resolved_principal
+        )
+        if not in_scope:
+            self._log("TAU_SCOPE_REJECTED", tau_id=self.tau_contract.tau_id,
+                      lei=lei, action_class=resolved_action, principal=resolved_principal,
+                      reason=scope_reason, manifest_sha256=self.tau_contract.manifest_sha256)
+            return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, scope_reason, False,
+                events=[e["event"] for e in self.events])
+        self._log("TAU_SCOPE_ADMITTED", tau_id=self.tau_contract.tau_id,
+                  lei=lei, action_class=resolved_action, principal=resolved_principal,
+                  manifest_sha256=self.tau_contract.manifest_sha256)
         try:
             attempt = self._register_attempt(
                 lei=lei, attempt_id=attempt_id, nonce=nonce, issue_permit=False
