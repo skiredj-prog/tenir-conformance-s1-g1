@@ -187,7 +187,8 @@ def test_s12g_different_realm_labels_same_content_produce_same_verdict():
     second = _transition(source_realm="LABEL_B")
     result_a, bridge_a, _ = _evaluate(target, transition=first)
     result_b, bridge_b, _ = _evaluate(target, transition=second)
-    assert _PAYLOAD == _PAYLOAD
+    assert first.source_realm != second.source_realm
+    assert first.payload_digest == second.payload_digest
     assert result_a.disposition == result_b.disposition == Disposition.PASS
     assert bridge_a.calls == bridge_b.calls == 1
 
