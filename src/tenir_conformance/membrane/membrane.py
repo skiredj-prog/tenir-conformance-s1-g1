@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -165,6 +166,9 @@ class Membrane:
         self.bridge = bridge
         self.sink = sink or EffectSink()
         self.clock = clock or FakeClock()
+        # Serialize the compound same-LEI check-and-register admission step.
+        # A process-local lock does not claim multi-process/distributed safety.
+        self._admission_lock = threading.RLock()
         self.tau_k_ms = tau_k_ms
         self.permits: dict[str, Permit] = {}
         self.attempts: dict[str, Attempt] = {}
@@ -296,22 +300,26 @@ class Membrane:
 
     def _register_attempt(self, *, lei: str, attempt_id: str, nonce: str = "",
                           issue_permit: bool = True) -> Attempt:
-        if attempt_id in self.attempts:
-            self._log("S3_DUPLICATE_ATTEMPT_ID", lei=lei, attempt_id=attempt_id)
-            raise DuplicateAttemptID(f"Registration rejected: attempt_id '{attempt_id}' already exists.")
-        if lei in self.governance_quarantine:
-            quarantine = self.governance_quarantine[lei]
-            self._log("GOVERNANCE_QUARANTINE_BLOCK", lei=lei, attempt_id=attempt_id,
-                      incident_id=quarantine["incident_id"])
-            raise UnresolvedSameLEI(f"Registration rejected: LEI '{lei}' is under governance quarantine.")
-        if self._has_unresolved(lei):
-            self._log("T1_guard_FALSE", lei=lei, attempt_id=attempt_id, reason="UNRESOLVED_SAME_LEI")
-            raise UnresolvedSameLEI(f"Registration rejected: LEI '{lei}' is locked by an unresolved attempt.")
-        attempt = Attempt(lei=lei, attempt_id=attempt_id, nonce=nonce)
-        self.attempts[attempt_id] = attempt
-        if issue_permit:
-            self._issue_permit(attempt)
-        return attempt
+        # The unresolved guard and registration must be one atomic operation
+        # relative to other callers in this process.
+        with self._admission_lock:
+            if attempt_id in self.attempts:
+                self._log("S3_DUPLICATE_ATTEMPT_ID", lei=lei, attempt_id=attempt_id)
+                raise DuplicateAttemptID(f"Registration rejected: attempt_id '{attempt_id}' already exists.")
+            if lei in self.governance_quarantine:
+                quarantine = self.governance_quarantine[lei]
+                self._log("GOVERNANCE_QUARANTINE_BLOCK", lei=lei, attempt_id=attempt_id,
+                          incident_id=quarantine["incident_id"])
+                raise UnresolvedSameLEI(f"Registration rejected: LEI '{lei}' is under governance quarantine.")
+            if self._has_unresolved(lei):
+                self._log("T1_guard_FALSE", lei=lei, attempt_id=attempt_id, reason="UNRESOLVED_SAME_LEI")
+                raise UnresolvedSameLEI(f"Registration rejected: LEI '{lei}' is locked by an unresolved attempt.")
+            attempt = Attempt(lei=lei, attempt_id=attempt_id, nonce=nonce)
+            self.attempts[attempt_id] = attempt
+            if issue_permit:
+                self._issue_permit(attempt)
+            self._log("T1_AttemptRegistered", lei=lei, attempt_id=attempt_id, nonce=nonce)
+            return attempt
 
     def _issue_permit(self, attempt: Attempt) -> Permit:
         if attempt.attempt_id in self.permits:
@@ -325,6 +333,26 @@ class Membrane:
         self._log("PERMIT_ISSUED", lei=attempt.lei, attempt_id=attempt.attempt_id,
                   nonce=attempt.nonce)
         return permit
+
+    def _consume_permit(self, attempt: Attempt) -> Permit:
+        """Atomically consume a permit once within this process."""
+        with self._admission_lock:
+            permit = self.permits.get(attempt.attempt_id)
+            if permit is None or permit.lei != attempt.lei:
+                self._log("PERMIT_CONSUMPTION_REJECTED", lei=attempt.lei,
+                          attempt_id=attempt.attempt_id, reason="PERMIT_NOT_FOUND")
+                raise ValueError("PERMIT_NOT_FOUND")
+            if permit.revoked:
+                self._log("PERMIT_CONSUMPTION_REJECTED", lei=attempt.lei,
+                          attempt_id=attempt.attempt_id, reason="PERMIT_REVOKED")
+                raise ValueError("PERMIT_REVOKED")
+            if permit.consumed:
+                self._log("PERMIT_CONSUMPTION_REJECTED", lei=attempt.lei,
+                          attempt_id=attempt.attempt_id, reason="PERMIT_ALREADY_CONSUMED")
+                raise ValueError("PERMIT_ALREADY_CONSUMED")
+            permit.consumed = True
+            self._log("PERMIT_CONSUMED", lei=attempt.lei, attempt_id=attempt.attempt_id)
+            return permit
 
     def process_transaction(self, *, lei: str, attempt_id: str, payload: Mapping[str, Any],
                             nonce: str = "", request_lost: bool = False,
@@ -360,8 +388,7 @@ class Membrane:
                 len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
                 events=[e["event"] for e in self.events])
         self._issue_permit(attempt)
-        self.permits[attempt_id].consumed = True
-        self._log("PERMIT_CONSUMED", lei=lei, attempt_id=attempt_id)
+        self._consume_permit(attempt)
         if request_lost:
             attempt.state = AttemptState.UNKNOWN
             self._log("T3_ReceiptLost", lei=lei, attempt_id=attempt_id, kind="REQUEST_LOST")
@@ -445,8 +472,7 @@ class Membrane:
                 len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
                 events=[e["event"] for e in self.events])
         self._issue_permit(attempt)
-        self.permits[attempt_id].consumed = True
-        self._log("PERMIT_CONSUMED", lei=lei, attempt_id=attempt_id)
+        self._consume_permit(attempt)
         if apply_effect:
             self.sink.apply(lei, attempt_id, payload)
             attempt.effect_observed = True
