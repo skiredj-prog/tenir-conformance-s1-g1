@@ -52,5 +52,68 @@
       }
     }
   },
-  "notes": "E1 executed by its dedicated GitHub Actions workflow. E1 now reports correct no-effect and correct single-effect rates against fixed denominators (15 no-effect-expected traces; 38 effect-expected traces), plus total blocked retry attempts and sequences with at least one block. E2 false_attest and adversarial at depth 6; honest and hidden_honest at depth 8. Depth reported per file. No E2 fixpoint reached; E2 remains outside the dedicated E1 workflow and conformance CI."
+  "notes": "E1 executed by its dedicated GitHub Actions workflow. E1 now reports correct no-effect and correct single-effect rates against fixed denominators (15 no-effect-expected traces; 38 effect-expected traces), plus total blocked retry attempts and sequences with at least one block. E2 false_attest and adversarial at depth 6; honest and hidden_honest at depth 8. Depth reported per file. No E2 fixpoint reached; E2 remains outside the dedicated E1 workflow and conformance CI.",
+  "e2_reconstructed_baseline": {
+    "status": "observed-baseline; not a conformance pass",
+    "established_date": "2026-10-09",
+    "script": "experiments/e1_e2/e2_explore.py",
+    "script_sha256": "e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9",
+    "tested_commit": "dccef80d8b118b8585bd5519ec921a46524bf236",
+    "workflow_run_id": 37935448226,
+    "workflow_run_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37935448226",
+    "python": "3.12.15",
+    "command_template": "python experiments/e1_e2/e2_explore.py --depth 8 --world WORLD --out /tmp/e2-WORLD-BACKEND.json",
+    "backends": [
+      "fallback",
+      "real"
+    ],
+    "backend_differential": "same counts observed for each world across both backends",
+    "historical_pre_s8_baseline": "unrecovered; historical SHA-256 d1488e806b4a784f7776f9ce0979b66034f7bf3076b9f7f19b19cf22cd64f6a0 not found in reachable Git objects scanned",
+    "results_file": "e2_reconstructed_baseline_2026-10-09.json",
+    "results": {
+      "honest": {
+        "depth": 8,
+        "distinct_states": 24944,
+        "transitions_checked": 395096,
+        "violations": {},
+        "artifact_ids": {
+          "fallback": 11618147090,
+          "real": 11617583203
+        }
+      },
+      "false_attest": {
+        "depth": 8,
+        "distinct_states": 71131,
+        "transitions_checked": 901340,
+        "violations": {},
+        "artifact_ids": {
+          "fallback": 11618121867,
+          "real": 11617922044
+        }
+      },
+      "hidden_honest": {
+        "depth": 8,
+        "distinct_states": 35358,
+        "transitions_checked": 593586,
+        "violations": {},
+        "artifact_ids": {
+          "fallback": 11618830066,
+          "real": 11617961793
+        }
+      },
+      "adversarial": {
+        "depth": 8,
+        "distinct_states": 213565,
+        "transitions_checked": 2681193,
+        "violations": {
+          "I1": 774705
+        },
+        "artifact_ids": {
+          "fallback": 11618721201,
+          "real": 11617679025
+        }
+      }
+    },
+    "disposition": "D5 historical baseline is no longer reproducible. A new observed baseline is recorded as of 2026-10-09 using the unchanged script and exact tested revision. The adversarial I1 violations are retained as a finding, not treated as success. S12 remains blocked."
+  }
 }
