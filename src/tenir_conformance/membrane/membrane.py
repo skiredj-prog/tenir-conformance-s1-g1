@@ -175,9 +175,12 @@ class Membrane:
         self.events.append({"ts_ms": self.clock.now_ms, "event": event, **fields})
 
     def _blocks_new_attempt(self, attempt: Attempt) -> bool:
+        # A confirmed execution permanently locks the same logical operation.
         if attempt.state == AttemptState.RESOLVED:
-            return False
-        if attempt.state == AttemptState.FAILED and attempt.retry_eligible:
+            return True
+        # Retry eligibility is policy/audit metadata, not an effect-lock override.
+        # FAILED is releasable only when this attempt has no observed execution effect.
+        if attempt.state == AttemptState.FAILED and not attempt.effect_observed:
             return False
         return True
 
@@ -248,12 +251,16 @@ class Membrane:
                 disp, st = self._client_projection(attempt)
                 return MembraneResult(disp, st, False, len(self.sink.effects), kd.score, kd.decision, False,
                     events=[e["event"] for e in self.events])
+            # A directly observed target rejection proves this attempt did not commit.
+            # It is a qualified failure, not a successful resolution.
             attempt.receipt_observed = True
-            attempt.state = AttemptState.RESOLVED
+            attempt.state = AttemptState.FAILED
             attempt.qualified = True
+            attempt.retry_eligible = False
+            attempt.failure_reason = "TARGET_REJECTED"
             self._log("TARGET_REJECTED_OBSERVED", lei=lei, attempt_id=attempt_id)
-            return MembraneResult(Disposition.PASS, AttemptState.RESOLVED.value, True,
-                len(self.sink.effects), kd.score, kd.decision, False,
+            return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value, True,
+                len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
                 events=[e["event"] for e in self.events])
         self.sink.apply(lei, attempt_id, payload)
         attempt.effect_observed = True
@@ -410,6 +417,12 @@ class Membrane:
 
         if attempt.state == AttemptState.AWAITING_QUALIFICATION:
             attempt.receipt_observed = True
+            if not attempt.effect_observed:
+                self._log("RECEIPT_REJECTED_NO_OBSERVED_EFFECT", lei=attempt.lei,
+                          attempt_id=attempt_id, reason="EFFECT_NOT_OBSERVED")
+                return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, True,
+                    len(self.sink.effects), 0.0, "NOT_EVALUATED", False, timeout_event=False,
+                    retry_eligible=False, events=[e["event"] for e in self.events])
             attempt.qualified = True
             attempt.state = AttemptState.RESOLVED
             self._log("RECEIPT_QUALIFIED", lei=attempt.lei, attempt_id=attempt_id)
@@ -424,6 +437,13 @@ class Membrane:
 
     def declare_failed(self, *, attempt_id: str, evidence_qualified: bool,
                        retry_eligible: bool = True, reason: str = "QUALIFIED_NON_EXECUTION") -> MembraneResult:
+        """T7 adjudication seam; currently not wired to a production caller.
+
+        evidence_qualified is an upstream adjudicator's attestation, not a
+        cryptographic check performed by this in-memory conformance harness.
+        Integrations must call this only after validating authority and proof of
+        non-execution. An already observed effect always prevents FAILED.
+        """
         if attempt_id not in self.attempts:
             raise KeyError(attempt_id)
         attempt = self.attempts[attempt_id]
@@ -451,6 +471,13 @@ class Membrane:
             return MembraneResult(disp, st, attempt.receipt_observed, len(self.sink.effects),
                 0.0, "NOT_EVALUATED", False, timeout_event=attempt.timeout_fired, retry_eligible=False,
                 events=[e["event"] for e in self.events])
+        if attempt.effect_observed:
+            self._log("T7_REJECTED_EFFECT_ALREADY_OBSERVED", lei=attempt.lei,
+                      attempt_id=attempt_id, reason=reason)
+            disp, st = self._client_projection(attempt)
+            return MembraneResult(disp, st, attempt.receipt_observed, len(self.sink.effects),
+                0.0, "NOT_EVALUATED", False, timeout_event=attempt.timeout_fired,
+                retry_eligible=False, events=[e["event"] for e in self.events])
         attempt.state = AttemptState.FAILED
         attempt.qualified = True
         attempt.retry_eligible = retry_eligible
@@ -728,6 +755,16 @@ class Membrane:
                       evidence_ids=sorted(evidence.evidence_id for evidence in batch))
             return MembraneResult(Disposition.PASS, AttemptState.RESOLVED.value, True,
                 len(self.sink.effects), 0.0, "EVIDENCE_BATCH_COMMITTED", False,
+                events=[event["event"] for event in self.events])
+
+        if statuses in ({"FAILED"}, {"REJECTED"}) and attempt.effect_observed:
+            self._log("EVIDENCE_NEGATIVE_CONTRADICTS_OBSERVED_EFFECT",
+                      lei=attempt.lei, attempt_id=attempt.attempt_id,
+                      evidence_ids=sorted(evidence.evidence_id for evidence in batch))
+            return MembraneResult(Disposition.HOLD, self._client_projection(attempt)[1],
+                attempt.receipt_observed, len(self.sink.effects), 0.0,
+                "EVIDENCE_CONTRADICTS_OBSERVED_EFFECT", False,
+                timeout_event=attempt.timeout_fired, retry_eligible=False,
                 events=[event["event"] for event in self.events])
 
         if statuses in ({"FAILED"}, {"REJECTED"}):
