@@ -14,9 +14,10 @@ public API of the lab membrane, under four assumption regimes (honest,
 false_attest, hidden_honest, adversarial). Script: `e2_explore.py`.
 Raw results: `r6_*.json` and `r8_*.json` (depth is encoded in the filename).
 
-Neither script is part of the conformance CI. They are reproduced here so
-that the manuscript's results are inspectable and re-runnable. Run them
-individually:
+E1 is run by the dedicated GitHub Actions workflow `.github/workflows/e1-baseline.yml`,
+separate from the membrane conformance CI. E2 remains outside the conformance CI.
+The raw outputs are retained here so the manuscript's results are inspectable and
+re-runnable. To rerun them locally:
 
     python e1_baseline.py
     python e2_explore.py --depth 8 --world honest --out r8_honest.json
