@@ -208,5 +208,39 @@
     "status": "HYPOTHESIS_UNRECOVERABLE",
     "note": "V1 was produced against a pre-PR#6 membrane by an explorer that was not committed. Neither artifact is recoverable. The 36,892 figure is preserved as historical evidence, not as a reproducible reference.",
     "ci_gate": false
+  },
+  "current_e2_baseline": {
+    "source_commit": "26b9466ec666de18e5acaac4ce1fac0135cadd9e",
+    "depth": 8,
+    "workflow_run": {
+      "run_number": 150,
+      "run_id": 37962357582,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962357582",
+      "result": "success"
+    },
+    "worlds": {
+      "honest": {
+        "distinct_states": 675,
+        "transitions_checked": 25297,
+        "violations": 0
+      },
+      "false_attest": {
+        "distinct_states": 1539,
+        "transitions_checked": 56111,
+        "violations": 0
+      },
+      "hidden_honest": {
+        "distinct_states": 1059,
+        "transitions_checked": 41807,
+        "violations": 0
+      },
+      "adversarial": {
+        "distinct_states": 2307,
+        "transitions_checked": 88567,
+        "violations": 0
+      }
+    },
+    "historical_count_gate": false,
+    "evidence_path": "experiments/e1_e2/E2_BASELINES.md"
   }
 }
