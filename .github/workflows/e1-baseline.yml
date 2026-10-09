@@ -29,14 +29,17 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python experiments/e1_e2/e1_baseline.py | tee e1_results.txt
+          python experiments/e1_e2/e1_baseline.py | tee experiments/e1_e2/e1_results.txt
       - name: Compute SHA-256 for run record
+        working-directory: experiments/e1_e2
         run: |
-          sha256sum experiments/e1_e2/e1_baseline.py
+          sha256sum e1_baseline.py
           sha256sum e1_results.txt
+          sha256sum e2_explore.py
+          sha256sum r6_adversarial.json r6_false_attest.json r8_honest.json r8_hidden_honest.json
       - name: Upload E1 run output
         uses: actions/upload-artifact@v4
         with:
           name: e1-baseline-results
-          path: e1_results.txt
+          path: experiments/e1_e2/e1_results.txt
           if-no-files-found: error
