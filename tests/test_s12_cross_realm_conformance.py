@@ -146,7 +146,7 @@ def test_s12d_invalid_authority_in_target_realm_hard_vetoes_before_kernel():
     txn = _transition(principal="untrusted-principal")
     result, bridge, membrane = _evaluate(document, transition=txn)
     assert result.disposition == Disposition.HARD_VETO
-    assert result.kernel_decision == "PRINCIPAL_NOT_ALLOWED"
+    assert result.kernel_decision == "TARGET_REALM_POLICY_REJECTED"
     assert bridge.calls == 0
     assert result.effect_count == 0
 
