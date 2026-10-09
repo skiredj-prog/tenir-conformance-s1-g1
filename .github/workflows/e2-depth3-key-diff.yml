@@ -89,7 +89,29 @@ jobs:
                   raise SystemExit(f"Instrumentation patch expected one match, found {count}: {old[:80]!r}")
               src = src.replace(old, new)
           Path("/tmp/e2_explore_keys.py").write_text(src, encoding="utf-8")
-          print("Instrumented identical explorer logic for diagnostic key/trace capture.")
+          # A second, diagnostic-only copy adapts the old E2 event calls to the
+          # candidate API by supplying a deterministic nonce only where supported.
+          nonce_src = src.replace("m.process_transaction(", "_e2_process_transaction(m, ")
+          nonce_src = nonce_src.replace("m.retry(", "_e2_retry(m, ")
+          helpers = '''
+def _e2_process_transaction(m, **kwargs):
+    import inspect
+    if "nonce" in inspect.signature(m.process_transaction).parameters:
+        kwargs.setdefault("nonce", NONCE[kwargs["attempt_id"]])
+    return m.process_transaction(**kwargs)
+
+def _e2_retry(m, **kwargs):
+    import inspect
+    if "nonce" in inspect.signature(m.retry).parameters:
+        kwargs.setdefault("nonce", NONCE[kwargs["attempt_id"]])
+    return m.retry(**kwargs)
+'''
+          marker = "def build_events(world_mode):"
+          if nonce_src.count(marker) != 1:
+              raise SystemExit("Could not locate build_events for nonce adapter")
+          nonce_src = nonce_src.replace(marker, helpers + "\\n" + marker, 1)
+          Path("/tmp/e2_explore_keys_nonce.py").write_text(nonce_src, encoding="utf-8")
+          print("Created exact-key instrument plus an API-adapted nonce variant.")
           PY
       - name: Run depth-3 baseline and candidate
         shell: bash
@@ -98,6 +120,7 @@ jobs:
           git worktree add --detach /tmp/e2-pre 84e46d94a6259ad1ec57757074a422d2f356ec49
           PYTHONHASHSEED=0 PYTHONPATH=/tmp/e2-pre/src python /tmp/e2_explore_keys.py --world honest --depth 3 --out /tmp/e2-pre.json
           PYTHONHASHSEED=0 PYTHONPATH="$GITHUB_WORKSPACE/src" python /tmp/e2_explore_keys.py --world honest --depth 3 --out /tmp/e2-candidate.json
+          PYTHONHASHSEED=0 PYTHONPATH="$GITHUB_WORKSPACE/src" python /tmp/e2_explore_keys_nonce.py --world honest --depth 3 --out /tmp/e2-candidate-nonce.json
           python - <<'PY'
           import json
           from pathlib import Path
@@ -198,6 +221,59 @@ jobs:
                              "root_transition_differences": root_diffs},
           }, indent=2), encoding="utf-8")
           PY
+      - name: Compare API-adapted candidate against pre-S8
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          pre = json.loads(Path("/tmp/e2-pre.json").read_text(encoding="utf-8"))
+          cand = json.loads(Path("/tmp/e2-candidate-nonce.json").read_text(encoding="utf-8"))
+          attempt_fields = {"lei", "attempt_id", "state", "effect_observed", "receipt_observed",
+                            "qualified", "timeout_fired", "await_until_ms", "retry_eligible", "failure_reason", "nonce"}
+          permit_fields = {"lei", "attempt_id", "consumed", "issued_at_ms", "revoked"}
+          def norm(k):
+              return [
+                  [[i, [[n,v] for n,v in fields if n in attempt_fields]] for i,fields in k[0]],
+                  [[i, [[n,v] for n,v in fields if n in permit_fields]] for i,fields in k[1]],
+                  *k[2:]
+              ]
+          def ident(k): return json.dumps(norm(k), sort_keys=True, separators=(",", ":"))
+          pr, cr = pre["diagnostic_state_records"], cand["diagnostic_state_records"]
+          print("API-ADAPTED DEPTH COUNTS")
+          print(json.dumps({"pre_s8": {"states": pre["distinct_states"], "by_depth": pre["new_states_by_depth"]},
+                            "candidate_with_nonce_adapter": {"states": cand["distinct_states"], "by_depth": cand["new_states_by_depth"],
+                              "transitions": cand["transitions_checked"], "hash_collisions": cand["diagnostic_hash_collision_count"]}}, indent=2))
+          earliest = None
+          for d in range(4):
+              ps = {ident(r["full_key"]) for r in pr if r["depth"] <= d}
+              cs = {ident(r["full_key"]) for r in cr if r["depth"] <= d}
+              print(json.dumps({"depth": d, "pre_only": len(ps-cs), "candidate_only": len(cs-ps)}))
+              if earliest is None and ps != cs: earliest = d
+          base_root = {x["label"]:x for x in pre["diagnostic_root_transitions"]}
+          cand_root = {x["label"]:x for x in cand["diagnostic_root_transitions"]}
+          for label in ["process(A1,ok)", "process(A1,request_lost)", "process(A1,receipt_lost)",
+                        "process(A1,target_rejected_seen)", "process(A1,kernel_veto)", "retry(A1)"]:
+              a,b = base_root.get(label), cand_root.get(label)
+              print(json.dumps({"root_event":label, "pre_exception":None if a is None else a["exception"],
+                                "candidate_exception":None if b is None else b["exception"],
+                                "pre_dispatch":None if a is None else a["dispatch"],
+                                "candidate_dispatch":None if b is None else b["dispatch"]}))
+          missing = next((r for r in pr if r["depth"] <= (earliest or 0)
+                          and ident(r["full_key"]) not in {ident(x["full_key"]) for x in cr if x["depth"] <= (earliest or 0)}), None)
+          print("EARLIEST API-ADAPTED DIVERGENCE")
+          print(json.dumps({"depth":earliest, "pre_state":None if missing is None else
+                            {"depth":missing["depth"], "trace":missing["trace"], "key":norm(missing["full_key"])}}, indent=2))
+          Path("/tmp/e2-api-adapter-diff.json").write_text(json.dumps({
+              "pre_states":pre["distinct_states"],"candidate_nonce_states":cand["distinct_states"],
+              "pre_by_depth":pre["new_states_by_depth"],"candidate_nonce_by_depth":cand["new_states_by_depth"],
+              "earliest_divergent_depth":earliest,
+              "candidate_nonce_hash_collisions":cand["diagnostic_hash_collision_count"],
+              "candidate_nonce_root_transitions":cand["diagnostic_root_transitions"],
+              "candidate_nonce_state_records":cand["diagnostic_state_records"]
+          }, indent=2), encoding="utf-8")
+          PY
       - name: Upload raw state-key records and diff
         uses: actions/upload-artifact@v4
         with:
@@ -205,5 +281,7 @@ jobs:
           path: |
             /tmp/e2-pre.json
             /tmp/e2-candidate.json
+            /tmp/e2-candidate-nonce.json
             /tmp/e2-key-diff.json
+            /tmp/e2-api-adapter-diff.json
           if-no-files-found: error
