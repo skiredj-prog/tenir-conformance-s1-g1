@@ -180,6 +180,7 @@ def test_s3b_a1_executed_receipt_pending():
     """S3b: A1 effect applied, receipt lost → UNKNOWN; A2 blocked; sink stable."""
     m = _membrane()
     first = m.process_transaction(
+        nonce="n-s3-process_transaction-01",
         lei="L", attempt_id="A1", payload=PAYLOAD, receipt_lost=True
     )
     assert first.effect_count == 1
@@ -190,7 +191,7 @@ def test_s3b_a1_executed_receipt_pending():
     with pytest.raises(UnresolvedSameLEI):
         m._register_attempt(lei="L", attempt_id="A2")
 
-    r = m.process_transaction(lei="L", attempt_id="A2", payload=PAYLOAD)
+    r = m.process_transaction(nonce="n-s3-process_transaction-02", lei="L", attempt_id="A2", payload=PAYLOAD)
     _assert_g0_rejection(
         m,
         a1_id="A1",
@@ -227,7 +228,7 @@ def test_s3c_a1_unknown_after_timeout():
     with pytest.raises(UnresolvedSameLEI):
         m._register_attempt(lei="L", attempt_id="A2")
 
-    r = m.retry(lei="L", attempt_id="A2", payload=PAYLOAD)
+    r = m.retry(nonce="n-s3-retry-01", lei="L", attempt_id="A2", payload=PAYLOAD)
     _assert_g0_rejection(
         m,
         a1_id="A1",
@@ -260,7 +261,7 @@ def test_s3d_duplicate_attempt_id():
     with pytest.raises(DuplicateAttemptID):
         m._register_attempt(lei="L", attempt_id="A1")
 
-    r = m.process_transaction(lei="L", attempt_id="A1", payload=PAYLOAD)
+    r = m.process_transaction(nonce="n-s3-process_transaction-03", lei="L", attempt_id="A1", payload=PAYLOAD)
     _assert_g0_rejection(
         m,
         a1_id="A1",
@@ -289,6 +290,7 @@ def test_s3_after_t8_eligible_new_id_allowed():
     """Control: T7 FAILED + retry_eligible unlocks new attempt_id on same LEI."""
     m = _membrane()
     m.process_transaction(
+        nonce="n-s3-process_transaction-04",
         lei="L", attempt_id="A1", payload=PAYLOAD, request_lost=True
     )
     m.declare_failed(

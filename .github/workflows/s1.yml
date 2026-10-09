@@ -21,6 +21,9 @@ jobs:
       - name: Run S1 harness tests
         run: python -m pytest tests/test_s1.py -v --tb=short
 
+      - name: Run nonce binding and HARD_VETO lifecycle tests
+        run: python -m pytest tests/test_nonce_and_kernel_veto.py -v --tb=short
+
       - name: Install real TENIR subject
         run: pip install "git+https://github.com/skiredj-prog/tenir_governance.git"
 

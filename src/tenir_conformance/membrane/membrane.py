@@ -126,6 +126,7 @@ class Attempt:
     retry_eligible: bool = False
     failure_reason: str | None = None
     nonce: str = ""
+    non_execution_confirmed: bool = False
 
 
 @dataclass
@@ -185,7 +186,9 @@ class Membrane:
             return True
         # Retry eligibility is policy/audit metadata, not an effect-lock override.
         # FAILED is releasable only when this attempt has no observed execution effect.
-        if attempt.state == AttemptState.FAILED and not attempt.effect_observed:
+        if (attempt.state == AttemptState.FAILED
+                and attempt.non_execution_confirmed
+                and not attempt.effect_observed):
             return False
         return True
 
@@ -203,7 +206,8 @@ class Membrane:
             return Disposition.HOLD, AttemptState.ESCALATED.value
         return Disposition.HOLD, AttemptState.UNKNOWN.value
 
-    def _register_attempt(self, *, lei: str, attempt_id: str, nonce: str = "") -> Attempt:
+    def _register_attempt(self, *, lei: str, attempt_id: str, nonce: str = "",
+                          issue_permit: bool = True) -> Attempt:
         if attempt_id in self.attempts:
             self._log("S3_DUPLICATE_ATTEMPT_ID", lei=lei, attempt_id=attempt_id)
             raise DuplicateAttemptID(f"Registration rejected: attempt_id '{attempt_id}' already exists.")
@@ -217,15 +221,33 @@ class Membrane:
             raise UnresolvedSameLEI(f"Registration rejected: LEI '{lei}' is locked by an unresolved attempt.")
         attempt = Attempt(lei=lei, attempt_id=attempt_id, nonce=nonce)
         self.attempts[attempt_id] = attempt
-        self.permits[attempt_id] = Permit(lei=lei, attempt_id=attempt_id, issued_at_ms=self.clock.now_ms)
-        self._log("PERMIT_ISSUED", lei=lei, attempt_id=attempt_id, nonce=nonce)
+        if issue_permit:
+            self._issue_permit(attempt)
         return attempt
 
+    def _issue_permit(self, attempt: Attempt) -> Permit:
+        if attempt.attempt_id in self.permits:
+            raise ValueError("PERMIT_ALREADY_ISSUED")
+        permit = Permit(
+            lei=attempt.lei,
+            attempt_id=attempt.attempt_id,
+            issued_at_ms=self.clock.now_ms,
+        )
+        self.permits[attempt.attempt_id] = permit
+        self._log("PERMIT_ISSUED", lei=attempt.lei, attempt_id=attempt.attempt_id,
+                  nonce=attempt.nonce)
+        return permit
+
     def process_transaction(self, *, lei: str, attempt_id: str, payload: Mapping[str, Any],
-                            request_lost: bool = False, receipt_lost: bool = False,
+                            nonce: str = "", request_lost: bool = False,
+                            receipt_lost: bool = False,
                             target_rejected: bool = False) -> MembraneResult:
+        if not isinstance(nonce, str) or not nonce.strip():
+            raise ValueError("NONCE_REQUIRED")
         try:
-            attempt = self._register_attempt(lei=lei, attempt_id=attempt_id, nonce="")
+            attempt = self._register_attempt(
+                lei=lei, attempt_id=attempt_id, nonce=nonce, issue_permit=False
+            )
         except DuplicateAttemptID:
             return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                 len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
@@ -236,11 +258,20 @@ class Membrane:
                 events=[e["event"] for e in self.events])
         kd = self.bridge.evaluate(payload)
         if not kd.admissible:
-            attempt.state = AttemptState.UNKNOWN
-            self._log("KERNEL_VETO", lei=lei, decision=kd.decision)
-            return MembraneResult(Disposition.HARD_VETO, AttemptState.UNKNOWN.value, False,
-                len(self.sink.effects), kd.score, kd.decision, False,
+            attempt.state = AttemptState.FAILED
+            attempt.qualified = True
+            attempt.non_execution_confirmed = True
+            attempt.retry_eligible = False
+            attempt.failure_reason = "KERNEL_HARD_VETO"
+            self._log("KernelVeto", lei=lei, attempt_id=attempt_id, decision=kd.decision)
+            self._log("AttemptFailed", lei=lei, attempt_id=attempt_id,
+                      reason="KERNEL_HARD_VETO", non_execution_confirmed=True)
+            self._log("LEIUnlocked", lei=lei, attempt_id=attempt_id,
+                      reason="KERNEL_HARD_VETO")
+            return MembraneResult(Disposition.HARD_VETO, AttemptState.FAILED.value, False,
+                len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
                 events=[e["event"] for e in self.events])
+        self._issue_permit(attempt)
         self.permits[attempt_id].consumed = True
         self._log("PERMIT_CONSUMED", lei=lei, attempt_id=attempt_id)
         if request_lost:
@@ -260,6 +291,7 @@ class Membrane:
             # It is a qualified failure, not a successful resolution.
             attempt.receipt_observed = True
             attempt.state = AttemptState.FAILED
+            attempt.non_execution_confirmed = True
             attempt.qualified = True
             attempt.retry_eligible = False
             attempt.failure_reason = "TARGET_REJECTED"
@@ -284,7 +316,8 @@ class Membrane:
             len(self.sink.effects), kd.score, kd.decision, False,
             events=[e["event"] for e in self.events])
 
-    def retry(self, *, lei: str, attempt_id: str, payload: Mapping[str, Any]) -> MembraneResult:
+    def retry(self, *, lei: str, attempt_id: str, payload: Mapping[str, Any],
+              nonce: str = "") -> MembraneResult:
         self.check_qualification_timeouts()
         if self._has_unresolved(lei):
             self._log("T1_guard_FALSE", lei=lei, reason="UNRESOLVED_SAME_LEI")
@@ -292,12 +325,14 @@ class Membrane:
                 len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
                 timeout_event=any(a.timeout_fired for a in self.attempts.values() if a.lei == lei),
                 events=[e["event"] for e in self.events])
-        return self.process_transaction(lei=lei, attempt_id=attempt_id, payload=payload)
+        return self.process_transaction(lei=lei, attempt_id=attempt_id, payload=payload, nonce=nonce)
 
     def admit_and_await_qualification(self, *, lei: str, attempt_id: str, payload: Mapping[str, Any],
                                       apply_effect: bool = True, nonce: str = "") -> MembraneResult:
         try:
-            attempt = self._register_attempt(lei=lei, attempt_id=attempt_id, nonce=nonce)
+            attempt = self._register_attempt(
+                lei=lei, attempt_id=attempt_id, nonce=nonce, issue_permit=False
+            )
         except DuplicateAttemptID:
             return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                 len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
@@ -308,11 +343,20 @@ class Membrane:
                 events=[e["event"] for e in self.events])
         kd = self.bridge.evaluate(payload)
         if not kd.admissible:
-            attempt.state = AttemptState.UNKNOWN
-            self._log("KERNEL_VETO", lei=lei, decision=kd.decision)
-            return MembraneResult(Disposition.HARD_VETO, AttemptState.UNKNOWN.value, False,
-                len(self.sink.effects), kd.score, kd.decision, False,
+            attempt.state = AttemptState.FAILED
+            attempt.qualified = True
+            attempt.non_execution_confirmed = True
+            attempt.retry_eligible = False
+            attempt.failure_reason = "KERNEL_HARD_VETO"
+            self._log("KernelVeto", lei=lei, attempt_id=attempt_id, decision=kd.decision)
+            self._log("AttemptFailed", lei=lei, attempt_id=attempt_id,
+                      reason="KERNEL_HARD_VETO", non_execution_confirmed=True)
+            self._log("LEIUnlocked", lei=lei, attempt_id=attempt_id,
+                      reason="KERNEL_HARD_VETO")
+            return MembraneResult(Disposition.HARD_VETO, AttemptState.FAILED.value, False,
+                len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
                 events=[e["event"] for e in self.events])
+        self._issue_permit(attempt)
         self.permits[attempt_id].consumed = True
         self._log("PERMIT_CONSUMED", lei=lei, attempt_id=attempt_id)
         if apply_effect:
@@ -484,6 +528,7 @@ class Membrane:
                 0.0, "NOT_EVALUATED", False, timeout_event=attempt.timeout_fired,
                 retry_eligible=False, events=[e["event"] for e in self.events])
         attempt.state = AttemptState.FAILED
+        attempt.non_execution_confirmed = True
         attempt.qualified = True
         attempt.retry_eligible = retry_eligible
         attempt.failure_reason = reason
@@ -789,6 +834,7 @@ class Membrane:
                     timeout_event=attempt.timeout_fired, retry_eligible=False,
                     events=[event["event"] for event in self.events])
             attempt.state = AttemptState.FAILED
+            attempt.non_execution_confirmed = True
             attempt.qualified = True
             attempt.retry_eligible = False
             attempt.failure_reason = "CONSISTENT_NEGATIVE_EVIDENCE"
@@ -861,6 +907,7 @@ class Membrane:
                 (attempt.state == AttemptState.RESOLVED and outcome == "COMMITTED"
                  and attempt.effect_observed)
                 or (attempt.state == AttemptState.FAILED and outcome == "FAILED"
+                    and attempt.non_execution_confirmed is True
                     and item.non_execution_confirmed is True
                     and not attempt.effect_observed)
             )
@@ -918,6 +965,8 @@ class Membrane:
                 events=[event["event"] for event in self.events])
 
         attempt.state = AttemptState.FAILED
+
+        attempt.non_execution_confirmed = True
         attempt.qualified = True
         attempt.retry_eligible = retry_eligible  # audit/policy annotation only
         attempt.failure_reason = "RECONCILIATION_CONFIRMED_NON_EXECUTION"
