@@ -1,0 +1,126 @@
+{
+  "manifest_version": "1.0",
+  "purpose": "Aggregate manifest for G0 S1-S6 empirical lab validation",
+  "repository": "https://github.com/skiredj-prog/tenir-conformance-s1-g1",
+  "validated_source_commit": "84e46d94a6259ad1ec57757074a422d2f356ec49",
+  "pull_request": {
+    "number": 4,
+    "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/pull/4",
+    "merged": true,
+    "merge_commit": "84e46d94a6259ad1ec57757074a422d2f356ec49"
+  },
+  "validation": {
+    "workflow": "Membrane CI (S1–S6 + T7/T8)",
+    "run_number": 56,
+    "run_id": 37865202825,
+    "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37865202825",
+    "event": "push",
+    "result": "success",
+    "test_scope": [
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6",
+      "T7",
+      "T8"
+    ],
+    "dedicated_s6_tests": 7,
+    "claim_scope": "tested sequential interleavings only"
+  },
+  "scenario_specs": [
+    {
+      "id": "S1",
+      "path": "scenarios/S1.json",
+      "git_blob_sha1": "61ecf201685802de913cc2d053020a9bedcf81b6"
+    },
+    {
+      "id": "S2",
+      "path": "scenarios/S2.json",
+      "git_blob_sha1": "4d0c9cdf19129754330958a02cfbb7b657aada0c"
+    },
+    {
+      "id": "S3",
+      "path": "scenarios/S3.json",
+      "git_blob_sha1": "6682572cd5ac3f8320cdccc75e5f499b316cea6b"
+    },
+    {
+      "id": "S4",
+      "path": "scenarios/S4.json",
+      "git_blob_sha1": "69cbfa4fe80e197ebefdb985008be9c4e1bbfa96"
+    },
+    {
+      "id": "S5",
+      "path": "scenarios/S5.json",
+      "git_blob_sha1": "b0ea1850d898cbb8fe79a36defdd8cc927604595"
+    },
+    {
+      "id": "S6",
+      "path": "scenarios/S6.json",
+      "git_blob_sha1": "723b71b964ab9960acf4834782e4eb65b7e3caf5"
+    },
+    {
+      "id": "S6_specification",
+      "path": "scenarios/G0_S6_SUCCESSFUL_RECONCILIATION.md",
+      "git_blob_sha1": "4d8508514c9297434458c43acb93cdb08f914426"
+    }
+  ],
+  "evidence_artifacts": [
+    {
+      "scenario": "S1",
+      "name": "s1-evidence",
+      "artifact_id": 11588235615,
+      "archive_sha256": "c71ea8e6afb4597370fb8214d1218e133773c8718f0e6778feddc13aadef9691",
+      "size_bytes": 4758,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588235615/zip"
+    },
+    {
+      "scenario": "S2",
+      "name": "s2-evidence",
+      "artifact_id": 11587764157,
+      "archive_sha256": "6de6a61692aebc05c45bd81e27090a6918875d44c3175955400e1d2f850109b0",
+      "size_bytes": 5284,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11587764157/zip"
+    },
+    {
+      "scenario": "S3",
+      "name": "s3-evidence",
+      "artifact_id": 11587749328,
+      "archive_sha256": "bf0ef634413701a64b0a76726810fff8792d6515f8069bf8c955a322a4b61d48",
+      "size_bytes": 6624,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11587749328/zip"
+    },
+    {
+      "scenario": "S4",
+      "name": "s4-evidence",
+      "artifact_id": 11588300377,
+      "archive_sha256": "942cbb4fda7565c48d7b7c545e0219a8fd9654c3bbda0966762f1b4dc8759d2a",
+      "size_bytes": 3525,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588300377/zip"
+    },
+    {
+      "scenario": "S5",
+      "name": "s5-evidence",
+      "artifact_id": 11588021152,
+      "archive_sha256": "3c8ce83c04ea2a0bcab8efcca04a4733d185b794fff5eed4e93c2ecb9d9f4c84",
+      "size_bytes": 3958,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588021152/zip"
+    },
+    {
+      "scenario": "S6",
+      "name": "s6-evidence",
+      "artifact_id": 11588150721,
+      "archive_sha256": "4bedf478a7f296e47e2a3021c7a8cb894b1d90c18f9459ad4605ce43943f0971",
+      "size_bytes": 6157,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11588150721/zip"
+    }
+  ],
+  "limitations": [
+    "non_execution_confirmed is a declarative upstream attestation; the membrane does not cryptographically verify non-execution",
+    "production deployment requires a signed target reconciliation receipt or independent audit path",
+    "validation covers tested sequential interleavings only, not unconstrained concurrency",
+    "this lab result does not certify production REG/TENIR conformance"
+  ],
+  "phase_status": "PHASE_1_LAB_VALIDATION_COMPLETE; PHASE_2_NOT_STARTED"
+}
