@@ -1,7 +1,8 @@
 # Scientific status of this package
 
-**Validated source commit:** `84e46d94a6259ad1ec57757074a422d2f356ec49` (PR #4 squash merge).
-**Post-merge CI:** [Run #56 — Membrane CI (S1–S6 + T7/T8)](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37865202825) — **PASS**.
+**Validated source commit:** `07b5f315bbbaab7649e6ae9049445913de141f25` (head of latest successful post-merge run).
+**PR #4 merge commit:** `84e46d94a6259ad1ec57757074a422d2f356ec49`.
+**Latest post-merge CI:** [Run #58 — Membrane CI (S1–S6 + T7/T8)](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37865306599) — **PASS**, including S1–S6 and T7/T8 test steps and all six evidence uploads.
 **Manifest:** [MANIFEST.json](./MANIFEST.json).
 
 ## What this package establishes
