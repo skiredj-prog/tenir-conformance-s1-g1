@@ -23,3 +23,13 @@ re-runnable. To rerun them locally:
     python e2_explore.py --depth 8 --world honest --out r8_honest.json
 
 Requires the `tenir_conformance` package (this repository) on `PYTHONPATH`.
+
+**E1 safety/liveness metrics.** The script reports both total blocked retry attempts and
+the number of sequences containing at least one block; these are distinct measures.
+It also computes two trace-conditioned rates from the same fixed 53-sequence set:
+15 traces contain only F1/F3/F4 outcomes (no effect expected), and 38 contain at
+least one effect-producing F0/F2 outcome (effect expected). A correct no-effect
+case requires zero final effects **and positive operation-level evidence of
+non-execution**; UNKNOWN or HOLD alone does not qualify. A correct single-effect
+case requires exactly one final effect and client-confirmed success. Rates are
+model-specific and do not estimate production probabilities.
