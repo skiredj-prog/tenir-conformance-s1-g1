@@ -180,7 +180,7 @@ def freeze(value):
     if isinstance(value, Enum):
         return ("__enum__", type(value).__module__, type(value).__qualname__, value.value)
     if isinstance(value, Mapping):
-        return tuple(sorted((freeze(k), freeze(v)) for k, v in value.items()))
+        return tuple(sorted(((freeze(k), freeze(v)) for k, v in value.items()), key=lambda item: repr(item[0])))
     if isinstance(value, (list, tuple)):
         return tuple(freeze(v) for v in value)
     if isinstance(value, (set, frozenset)):
@@ -201,7 +201,7 @@ def key(m: Membrane, w: World) -> tuple:
         attempts, permits, freeze(m.governance_quarantine),
         freeze(m.governance_quarantine_history), freeze(m.sink.effects),
         freeze(m._evidence_registry), tuple(sorted(w.effects.items())),
-        w.advances, m.clock.now_ms,
+        w.advances, m.clock.now_ms - T0,  # relative logical time; preserves timeout/expiry semantics
     )
 
 
