@@ -3,6 +3,7 @@
 from .attestation import NonExecutionAttestation, load_trust_root, verify_attestation
 from .kernel_bridge import KernelBridge
 from .tau_contract import TAUContract
+from .realm_policy import RealmPolicy
 from .transition import Transition, canonical_bytes, canonical_hash, payload_sha256
 from .membrane import (
     Disposition,
@@ -22,6 +23,7 @@ from .membrane import (
 __all__ = [
     "KernelBridge",
     "TAUContract",
+    "RealmPolicy",
     "Transition",
     "canonical_bytes",
     "canonical_hash",

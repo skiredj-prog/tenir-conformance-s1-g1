@@ -12,6 +12,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .attestation import NonExecutionAttestation, load_trust_root, verify_attestation
 from .kernel_bridge import KernelBridge
+from .realm_policy import RealmPolicy
 from .tau_contract import TAUContract
 from .transition import Transition, canonical_bytes, canonical_hash, payload_sha256
 
@@ -158,6 +159,9 @@ class EffectSink:
                     or execution_commit.get("target_realm") != transition.target_realm
                     or execution_commit.get("attempt_id") != attempt_id):
                 raise ValueError("EXECUTION_COMMIT_BINDING_MISMATCH")
+            if (expected_payload_digest is None
+                    or execution_commit.get("payload_digest") != expected_payload_digest):
+                raise ValueError("EXECUTION_COMMIT_PAYLOAD_MISMATCH")
         if expected_payload_digest is not None and payload_sha256(payload) != expected_payload_digest:
             raise ValueError("EXECUTION_COMMIT_PAYLOAD_MISMATCH")
         self.effects.append({"lei": lei, "attempt_id": attempt_id, "payload": dict(payload),
@@ -187,10 +191,16 @@ class Membrane:
                  quarantine_release_authorizer: Callable[[str, str], bool] | None = None,
                  trust_root: Mapping[str, Any] | str | Path | None = None,
                  tau_contract: TAUContract | Mapping[str, Any] | str | Path | None = "default",
-                 realm_policies: Mapping[str, Mapping[str, Any]] | None = None) -> None:
+                 realm_policies: Mapping[str, RealmPolicy] | None = None) -> None:
         # A signed TAU contract is loaded and verified before the membrane can start.
         self.tau_contract = TAUContract.load(tau_contract)
-        self.realm_policies = {str(name): dict(policy) for name, policy in (realm_policies or {}).items()}
+        self.realm_policies: dict[str, RealmPolicy] = {}
+        for name, policy in (realm_policies or {}).items():
+            if not isinstance(policy, RealmPolicy) or not policy.verified:
+                raise ValueError("REALM_POLICY_MUST_BE_SIGNATURE_VERIFIED")
+            if str(name) != policy.realm_id:
+                raise ValueError("REALM_POLICY_ID_MISMATCH")
+            self.realm_policies[str(name)] = policy
         self.execution_commits: list[dict[str, Any]] = []
         self.bridge = bridge
         self.sink = sink or EffectSink()
@@ -459,15 +469,11 @@ class Membrane:
                 return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                     len(self.sink.effects), 0.0, "UNKNOWN_TARGET_REALM", False,
                     events=[e["event"] for e in self.events])
-            allowed_actions = realm_policy.get("allowed_action_classes")
-            allowed_principals = realm_policy.get("allowed_principals")
-            required_postconditions = realm_policy.get("required_postconditions", [])
-            if (not isinstance(allowed_actions, (list, tuple, set, frozenset))
-                    or transition.action_class not in allowed_actions
-                    or not isinstance(allowed_principals, (list, tuple, set, frozenset))
-                    or transition.principal not in allowed_principals
-                    or not isinstance(required_postconditions, (list, tuple, set, frozenset))
-                    or not set(required_postconditions).issubset(set(transition.target_postconditions))):
+            if not realm_policy.admits(
+                action_class=transition.action_class,
+                principal=transition.principal,
+                declared_postconditions=transition.target_postconditions,
+            ):
                 self._log("TARGET_REALM_POLICY_REJECTED", lei=lei, attempt_id=attempt_id,
                           target_realm=transition.target_realm, action_class=transition.action_class,
                           principal=transition.principal,
