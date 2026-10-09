@@ -142,14 +142,26 @@ class EffectSink:
     def apply(self, lei: str, attempt_id: str, payload: Mapping[str, Any], *,
               transition: Transition | None = None,
               expected_transition_hash: str | None = None,
-              expected_payload_digest: str | None = None) -> None:
-        # Verify the immutable admission binding at the effect boundary itself.
+              expected_payload_digest: str | None = None,
+              execution_commit: Mapping[str, Any] | None = None) -> None:
+        # Verify the commitment and its governed object at the effect boundary.
         if transition is not None:
             if expected_transition_hash is None or canonical_hash(transition) != expected_transition_hash:
                 raise ValueError("EXECUTION_COMMIT_TRANSITION_MISMATCH")
+            if execution_commit is None:
+                raise ValueError("EXECUTION_COMMIT_MISSING")
+            commit_record = {key: value for key, value in execution_commit.items() if key != "commit_hash"}
+            expected_commit_hash = hashlib.sha256(canonical_bytes(commit_record)).hexdigest()
+            if execution_commit.get("commit_hash") != expected_commit_hash:
+                raise ValueError("EXECUTION_COMMIT_HASH_INVALID")
+            if (execution_commit.get("transition_hash") != expected_transition_hash
+                    or execution_commit.get("target_realm") != transition.target_realm
+                    or execution_commit.get("attempt_id") != attempt_id):
+                raise ValueError("EXECUTION_COMMIT_BINDING_MISMATCH")
         if expected_payload_digest is not None and payload_sha256(payload) != expected_payload_digest:
             raise ValueError("EXECUTION_COMMIT_PAYLOAD_MISMATCH")
-        self.effects.append({"lei": lei, "attempt_id": attempt_id, "payload": dict(payload)})
+        self.effects.append({"lei": lei, "attempt_id": attempt_id, "payload": dict(payload),
+                             "commit_hash": execution_commit.get("commit_hash") if execution_commit else None})
 
 
 @dataclass
@@ -563,7 +575,8 @@ class Membrane:
         try:
             self.sink.apply(lei, attempt_id, payload, transition=transition,
                             expected_transition_hash=transition_hash,
-                            expected_payload_digest=expected_digest)
+                            expected_payload_digest=expected_digest,
+                            execution_commit={**commit_record, "commit_hash": commit_hash})
         except ValueError as exc:
             reason = str(exc)
             self._log("EXECUTION_COMMIT_REJECTED", lei=lei, attempt_id=attempt_id,
