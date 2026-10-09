@@ -298,7 +298,7 @@ def test_s5_consistent_batch_can_follow_normal_resolution_path():
     assert not any(e["event"] == "EVIDENCE_CONTRADICTION" for e in m.events)
 
 
-def test_s5_quarantine_persists_until_explicit_audited_release():
+def test_s5_quarantine_release_does_not_override_resolved_effect_lock():
     m = _membrane()
     _make_resolved_attempt(m)
     m.evaluate_evidence_batch(attempt_id="A1", evidence_batch=_property_conflict())
@@ -333,9 +333,13 @@ def test_s5_quarantine_persists_until_explicit_audited_release():
     assert m.governance_quarantine_history[-1]["state"] == "RELEASED"
     assert any(e["event"] == "GOVERNANCE_QUARANTINE_RELEASED" for e in m.events)
 
+    # Releasing incident quarantine does not erase proof of an already resolved effect.
     resumed = m.process_transaction(lei="L", attempt_id="A2", payload=PAYLOAD)
-    assert resumed.disposition.value == "PASS"
-    assert len(m.permits) == permits_before + 1
+    assert resumed.disposition.value == "HOLD"
+    assert resumed.kernel_decision == "NOT_EVALUATED"
+    assert "A2" not in m.attempts
+    assert len(m.permits) == permits_before
+    assert len(m.sink.effects) == effects_before
 
 
 def test_s5_evidence_id_is_stable_and_cannot_be_rewritten():
@@ -366,3 +370,26 @@ def test_s5_mixed_normalization_profiles_are_rejected_before_decision():
     assert m.is_execution_permit_usable("A1") is True
     assert not any(e["event"] == "EVIDENCE_CONTRADICTION" for e in m.events)
 
+
+
+
+def test_s5_negative_outcome_cannot_override_observed_effect():
+    clock = FakeClock(now_ms=NOW)
+    m = _membrane(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=True, nonce="n-s5"
+    )
+    clock.advance_to(NOW + TAU)
+    m.check_qualification_timeouts()
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+    assert m.attempts["A1"].effect_observed is True
+
+    result = m.evaluate_evidence_batch(
+        attempt_id="A1", evidence_batch=[_evidence("E-FAIL-AFTER-EFFECT", "FAILED")]
+    )
+
+    assert result.disposition.value == "HOLD"
+    assert result.kernel_decision == "EVIDENCE_CONTRADICTS_OBSERVED_EFFECT"
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+    assert m.retry_eligible_for("L") is False
+    assert "EVIDENCE_NEGATIVE_CONTRADICTS_OBSERVED_EFFECT" in [e["event"] for e in m.events]

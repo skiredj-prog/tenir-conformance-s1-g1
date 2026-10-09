@@ -176,3 +176,21 @@ def test_s4_empty_nonce_rejects_qualification():
     assert m.attempts["A1"].state != AttemptState.RESOLVED
     assert any(e.get("reason") == "NONCE_NOT_REGISTERED" for e in m.events
                if e.get("event") == "RECEIPT_REJECTED_BINDING")
+
+
+
+def test_s4_receipt_cannot_resolve_without_observed_effect():
+    clock = FakeClock(now_ms=1_000_000)
+    m = _m(clock)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=False, nonce="n-no-effect"
+    )
+    result = m.deliver_qualifying_receipt(
+        Receipt(attempt_id="A1", lei="L", nonce="n-no-effect")
+    )
+    assert result.disposition.value == "HOLD"
+    assert m.attempts["A1"].state == AttemptState.AWAITING_QUALIFICATION
+    assert m.attempts["A1"].qualified is False
+    assert m.attempts["A1"].effect_observed is False
+    assert len(m.sink.effects) == 0
+    assert "RECEIPT_REJECTED_NO_OBSERVED_EFFECT" in [e["event"] for e in m.events]
