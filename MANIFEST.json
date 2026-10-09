@@ -261,8 +261,8 @@
       "run_number": 164,
       "run_id": 37965503304,
       "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37965503304",
-      "status": "in_progress",
-      "result": null,
+      "status": "completed",
+      "result": "success",
       "commit": "d2c7ce80199b437b4a616f7637ac8694638ca287"
     },
     "cases": {
@@ -275,7 +275,15 @@
       "S12g": "PASS (ND-2)",
       "S12h": "PASS"
     },
-    "status": "MERGED_MAIN_POST_MERGE_CI_IN_PROGRESS",
-    "scope_note": "Empirical lab result for the tested harness; not production REG conformance."
+    "status": "MERGED_MAIN_POST_MERGE_CI_PASS",
+    "scope_note": "Empirical lab result for the tested harness; not production REG conformance.",
+    "documentation_ci": {
+      "run_number": 166,
+      "run_id": 37965590426,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37965590426",
+      "result": "success",
+      "commit": "be0bcd0a7d2bef696ef77070971946fa8a67c609",
+      "note": "CI also passed after STATUS.md and MANIFEST.json documentation updates."
+    }
   }
 }
