@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import rfc8785
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 
@@ -76,6 +77,31 @@ class Transition:
             "target_postconditions": list(self.target_postconditions),
             "declared_at": self.declared_at,
         }
+
+
+@dataclass(frozen=True)
+class CrossRealmTransition(Transition):
+    """Minimal admission contract for Realm effect attributes and declared exposure."""
+
+    declared_effect_attributes: Mapping[str, Any]
+    declared_exposure: float
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.declared_effect_attributes, Mapping):
+            raise TypeError("TRANSITION_EFFECT_ATTRIBUTES_MUST_BE_MAPPING")
+        # Enforce JSON-canonicalizable attributes before they enter a commitment.
+        canonical_bytes(self.declared_effect_attributes)
+        if (isinstance(self.declared_exposure, bool)
+                or not isinstance(self.declared_exposure, (int, float))
+                or not math.isfinite(self.declared_exposure) or self.declared_exposure < 0):
+            raise ValueError("TRANSITION_DECLARED_EXPOSURE_INVALID")
+
+    def canonical_record(self) -> dict[str, Any]:
+        record = super().canonical_record()
+        record["declared_effect_attributes"] = _json_value(self.declared_effect_attributes)
+        record["declared_exposure"] = self.declared_exposure
+        return record
 
 
 def canonical_hash(transition: Transition) -> str:
