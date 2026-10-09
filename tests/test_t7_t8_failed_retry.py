@@ -7,6 +7,7 @@ from tenir_conformance.membrane.membrane import (
     Receipt,
 )
 from tenir_conformance.membrane.kernel_bridge import KernelBridge
+from s7_helpers import sign_attestation
 
 PAYLOAD = {"P": 0.5, "V": 0.5, "K": 1.0, "option_space": 1.0}
 TAU_K_MS = 5_000
@@ -64,6 +65,10 @@ def test_t7_unknown_to_failed_with_qualified_evidence():
     result = m.declare_failed(
         attempt_id="A",
         evidence_qualified=True,
+        attestation=sign_attestation(
+            attestation_id="AT-T7-A", attempt_id="A", lei="L",
+            nonce="n-t7t8-process_transaction-02",
+        ),
         retry_eligible=True,
         reason="PROOF_NON_EXECUTION",
     )
@@ -85,7 +90,12 @@ def test_t8_failed_retry_eligible_allows_new_attempt_same_lei():
         lei="L", attempt_id="A", payload=PAYLOAD, request_lost=True
     )
     m.declare_failed(
-        attempt_id="A", evidence_qualified=True, retry_eligible=True
+        attempt_id="A", evidence_qualified=True,
+        attestation=sign_attestation(
+            attestation_id="AT-T8A", attempt_id="A", lei="L",
+            nonce="n-t7t8-process_transaction-03",
+        ),
+        retry_eligible=True,
     )
     assert m.retry_eligible_for("L") is True
 
@@ -107,7 +117,12 @@ def test_t8_retry_eligibility_is_annotation_not_effect_lock():
         lei="L", attempt_id="A", payload=PAYLOAD, request_lost=True
     )
     m.declare_failed(
-        attempt_id="A", evidence_qualified=True, retry_eligible=False
+        attempt_id="A", evidence_qualified=True,
+        attestation=sign_attestation(
+            attestation_id="AT-T8B", attempt_id="A", lei="L",
+            nonce="n-t7t8-process_transaction-05",
+        ),
+        retry_eligible=False,
     )
     assert m.attempts["A"].state == AttemptState.FAILED
     assert m.attempts["A"].effect_observed is False
@@ -123,7 +138,8 @@ def test_t7_after_timeout_still_requires_qualification():
     clock = FakeClock(now_ms=1_000_000)
     m = _m(clock)
     m.admit_and_await_qualification(
-        lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=False
+        lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=False,
+        nonce="n-t7t8-timeout-01",
     )
     clock.advance_to(1_000_000 + TAU_K_MS)
     m.check_qualification_timeouts()
@@ -133,7 +149,12 @@ def test_t7_after_timeout_still_requires_qualification():
     assert m.attempts["A"].state == AttemptState.UNKNOWN
 
     m.declare_failed(
-        attempt_id="A", evidence_qualified=True, retry_eligible=True
+        attempt_id="A", evidence_qualified=True,
+        attestation=sign_attestation(
+            attestation_id="AT-T7-TIMEOUT", attempt_id="A", lei="L",
+            nonce="n-t7t8-timeout-01",
+        ),
+        retry_eligible=True,
     )
     assert m.attempts["A"].state == AttemptState.FAILED
     assert m.retry_eligible_for("L") is True
