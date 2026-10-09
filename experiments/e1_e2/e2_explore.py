@@ -32,6 +32,11 @@ from tenir_conformance.membrane.kernel_bridge import KernelBridge
 LEI = "L"
 IDS = ("A1", "A2")
 NONCE = {"A1": "nA1", "A2": "nA2"}
+
+
+def nonce_for(attempt_id: str, action: str) -> str:
+    """Stable caller-supplied nonce for each E2 attempt/action transition."""
+    return f"e2-{attempt_id}-{action}"
 OK = {"P": 0.5, "V": 0.5, "K": 1.0, "option_space": 1.0}
 VETO = {"P": 10.0, "V": 10.0, "K": 0.1, "option_space": 1.0}
 T0 = 1_000_000
@@ -78,14 +83,14 @@ def build_events(world_mode):
         ]:
             def f(m, w, a=a, kw=kw, eff=eff):
                 n0 = len(m.sink.effects)
-                m.process_transaction(lei=LEI, attempt_id=a, payload=OK, **kw)
+                m.process_transaction(lei=LEI, attempt_id=a, payload=OK, nonce=nonce_for(a, label), **kw)
                 if len(m.sink.effects) > n0:
                     w.effects[a] += 1
                 return True
             E.append((f"process({a},{label})", f))
 
         def fveto(m, w, a=a):
-            m.process_transaction(lei=LEI, attempt_id=a, payload=VETO)
+            m.process_transaction(lei=LEI, attempt_id=a, payload=VETO, nonce=nonce_for(a, "kernel_veto"))
             return True
         E.append((f"process({a},kernel_veto)", fveto))
 
@@ -111,7 +116,7 @@ def build_events(world_mode):
 
         def fretry(m, w, a=a):
             n0 = len(m.sink.effects)
-            m.retry(lei=LEI, attempt_id=a, payload=OK)
+            m.retry(lei=LEI, attempt_id=a, payload=OK, nonce=nonce_for(a, "retry"))
             if len(m.sink.effects) > n0:
                 w.effects[a] += 1
             return True
@@ -270,8 +275,15 @@ def explore(depth, world_mode, max_states=2_000_000):
             before = snapshot(m2, w2)
             try:
                 dispatch = fn(m2, w2)
-            except Exception:
+            except ValueError as exc:
+                message = str(exc)
+                if "NONCE_REQUIRED" in message or "TRANSITION_OBJECT_REQUIRED" in message:
+                    raise
+                # Other ValueErrors represent expected business guards/rejections.
                 dispatch = label.startswith(("process", "admit", "retry"))  # state may mutate before raising
+            except Exception:
+                # Unexpected implementation errors must not be treated as rejected moves.
+                raise
             transitions += 1
             for inv, msg in check(label, dispatch, m2, w2, before):
                 viol.setdefault(inv, 0)
