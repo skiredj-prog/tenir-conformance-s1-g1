@@ -66,6 +66,9 @@ jobs:
       - name: Run G0 S11 Transition object tests
         run: python -m pytest tests/test_g0_s11_transition.py -v --tb=short
 
+      - name: Run ND-1 Realm policy divergence gate
+        run: python -m pytest tests/test_s12_nd1_realm_divergence.py -v --tb=short
+
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
 
