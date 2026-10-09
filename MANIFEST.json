@@ -1,6 +1,6 @@
 {
   "manifest_version": "1.0",
-  "purpose": "Aggregate manifest for G0 S1-S6 empirical lab validation",
+  "purpose": "Aggregate manifest for G0 S1-S6 empirical lab validation and subsequent S7-S11 / S12 ND-1 implementation evidence",
   "repository": "https://github.com/skiredj-prog/tenir-conformance-s1-g1",
   "validated_source_commit": "07b5f315bbbaab7649e6ae9049445913de141f25",
   "pull_request": {
@@ -164,5 +164,48 @@
       }
     },
     "scope": "Exhaustive enumeration of the specified 53 sequential fault sequences; not a production probability estimate."
+  },
+  "latest_merge": {
+    "pull_request": 15,
+    "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/pull/15",
+    "merged": true,
+    "merge_commit": "26b9466ec666de18e5acaac4ce1fac0135cadd9e",
+    "tested_head_commit": "311bc3ae7ecf4dd241d6cea80fe98fad1a7d0922",
+    "ci_run": {
+      "run_number": 149,
+      "run_id": 37962187532,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962187532",
+      "result": "success",
+      "test_scope": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S10",
+        "S11",
+        "S12 ND-1",
+        "E2 bounded exploration (four worlds; invariant checks)"
+      ]
+    },
+    "post_merge_ci": {
+      "run_number": 150,
+      "run_id": 37962357582,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962357582",
+      "status": "in_progress"
+    },
+    "s12_status": {
+      "nd1": "PASS",
+      "s12a_s12h": "PENDING"
+    }
+  },
+  "e2_historical_baseline": {
+    "v1_expected_depth8_states": 36892,
+    "status": "HYPOTHESIS_UNRECOVERABLE",
+    "note": "V1 was produced against a pre-PR#6 membrane by an explorer that was not committed. Neither artifact is recoverable. The 36,892 figure is preserved as historical evidence, not as a reproducible reference.",
+    "ci_gate": false
   }
 }
