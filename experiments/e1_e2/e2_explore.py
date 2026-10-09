@@ -25,7 +25,7 @@ import time
 from collections import deque
 
 from tenir_conformance.membrane import (
-    AttemptState, Evidence, FakeClock, Membrane, Receipt,
+    AttemptState, Evidence, FakeClock, Membrane, Receipt, StaleReceiptError,
 )
 from tenir_conformance.membrane.kernel_bridge import KernelBridge
 
@@ -255,7 +255,12 @@ def explore(depth, world_mode, max_states=2_000_000):
         return m, World()
 
     m0, w0 = fresh()
-    seen = {hash(key(m0, w0)): 0}
+    root_key = key(m0, w0)
+    seen = {hash(root_key): 0}
+    # Depth-1 inventory is diagnostic evidence: preserve the first transition
+    # reaching each distinct state and the complete concrete state key.
+    state_inventory = [{"depth": 0, "state_hash": hash(root_key),
+                        "via": "ROOT", "state_key": root_key}] if depth == 1 else None
     q = deque([(m0, w0, ())])
     viol = {}
     first_trace = {}
@@ -281,6 +286,11 @@ def explore(depth, world_mode, max_states=2_000_000):
                     raise
                 # Other ValueErrors represent expected business guards/rejections.
                 dispatch = label.startswith(("process", "admit", "retry"))  # state may mutate before raising
+            except StaleReceiptError:
+                # Expired receipt is an explicit domain-level rejection. The
+                # membrane may have moved the attempt to UNKNOWN before raising;
+                # keep that concrete state and continue checking invariants.
+                dispatch = False
             except KeyError:
                 # Evidence events before their attempt exists are expected rejected
                 # moves in this exhaustive event alphabet. Keep the allowlist narrow.
@@ -304,11 +314,14 @@ def explore(depth, world_mode, max_states=2_000_000):
                 seen[k] = len(trace) + 1
                 frontier_by_depth[len(trace) + 1] = frontier_by_depth.get(len(trace) + 1, 0) + 1
                 q.append((m2, w2, trace + (label,)))
+                if state_inventory is not None and len(trace) == 0:
+                    state_inventory.append({"depth": 1, "state_hash": k,
+                                            "via": label, "state_key": key(m2, w2)})
                 if len(seen) >= max_states:
                     print("state cap hit", file=sys.stderr)
                     q.clear()
                     break
-    return {
+    result = {
         "world": world_mode, "depth": depth, "distinct_states": len(seen),
         "transitions_checked": transitions, "new_states_by_depth": frontier_by_depth,
         "violations": viol,
@@ -319,6 +332,9 @@ def explore(depth, world_mode, max_states=2_000_000):
                        "I5 FAILED => no observed effect", "I6 no admission under quarantine",
                        "I7 admission only after FAILED-without-effect", "I8 attempt record permanence"],
     }
+    if state_inventory is not None:
+        result["state_inventory_depth1"] = state_inventory
+    return result
 
 
 if __name__ == "__main__":
