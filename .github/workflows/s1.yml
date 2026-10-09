@@ -57,6 +57,9 @@ jobs:
       - name: Run G0 S8 concurrent admission tests
         run: python -m pytest tests/test_g0_s8_concurrent_admission.py -v --tb=short
 
+      - name: Generate S8 concurrency evidence artifacts
+        run: PYTHONPATH=src python tools/run_s8.py
+
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
 
@@ -107,4 +110,11 @@ jobs:
         with:
           name: s7-evidence
           path: artifacts/s7/
+          if-no-files-found: error
+
+      - name: Upload S8 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: s8-evidence
+          path: artifacts/s8/
           if-no-files-found: error
