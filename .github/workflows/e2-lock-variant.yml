@@ -1,0 +1,41 @@
+name: E2 lock-type differential (RLock variant)
+
+on:
+  pull_request:
+    paths:
+      - "src/tenir_conformance/membrane/membrane.py"
+      - ".github/workflows/e2-lock-variant.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  honest-depth-8:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify explorer and run honest depth 8
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(sha256sum experiments/e1_e2/e2_explore.py | awk '{print $1}')"
+          echo "E2 explorer SHA-256: $actual"
+          test "$actual" = "e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9"
+          PYTHONHASHSEED=0 PYTHONPATH=src python experiments/e1_e2/e2_explore.py --world honest --depth 8 --out /tmp/e2-rlock-honest.json
+          python - <<'PY'
+          import json
+          with open("/tmp/e2-rlock-honest.json", encoding="utf-8") as f:
+              r = json.load(f)
+          print("LOCK VARIANT RESULT")
+          print(f"world={r['world']}; depth={r['depth']}")
+          print(f"distinct_states={r['distinct_states']}")
+          print(f"transitions_checked={r['transitions_checked']}")
+          print(f"violations={r['violations']}")
+          print(f"new_states_by_depth={r['new_states_by_depth']}")
+          PY

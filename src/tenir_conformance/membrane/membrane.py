@@ -244,7 +244,7 @@ class Membrane:
         for key, value in self.__dict__.items():
             if key == "_admission_lock":
                 # Keep the original non-reentrant synchronization semantics.
-                setattr(new, key, threading.Lock())
+                setattr(new, key, threading.RLock())
             elif key == "bridge":
                 # E2 deliberately shares the immutable/stateless kernel bridge
                 # across cloned explorer states via memo={id(bridge): bridge}.
