@@ -1,0 +1,50 @@
+name: E2 differential on pre-S8 membrane
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/e2-differential-pre-s8.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  differential:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Preserve and verify current E2 explorer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/e2-differential
+          cp experiments/e1_e2/e2_explore.py /tmp/e2-differential/e2_explore.py
+          actual="$(sha256sum /tmp/e2-differential/e2_explore.py | awk '{print $1}')"
+          echo "E2 explorer SHA-256: $actual"
+          test "$actual" = "e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9"
+      - name: Check out pre-S8 source and run differential
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --detach 84e46d94a6259ad1ec57757074a422d2f356ec49
+          echo "Source commit: $(git rev-parse HEAD)"
+          PYTHONHASHSEED=0 PYTHONPATH=src python /tmp/e2-differential/e2_explore.py --world honest --depth 8 --out /tmp/e2-differential/honest.json
+          python - <<'PY'
+          import json
+          p = "/tmp/e2-differential/honest.json"
+          with open(p, encoding="utf-8") as f:
+              result = json.load(f)
+          print("DIFFERENTIAL RESULT")
+          print(f"world={result['world']}")
+          print(f"depth={result['depth']}")
+          print(f"distinct_states={result['distinct_states']}")
+          print(f"transitions_checked={result['transitions_checked']}")
+          print(f"violations={result['violations']}")
+          print(f"new_states_by_depth={result['new_states_by_depth']}")
+          PY
