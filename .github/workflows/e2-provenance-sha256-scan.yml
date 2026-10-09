@@ -55,12 +55,12 @@ jobs:
                         "--batch-check=%(objectname) %(objecttype) %(objectsize)").stdout.decode().splitlines()
           blob_oids = [line.split()[0] for line in listing
                        if len(line.split()) == 3 and line.split()[1] == "blob"]
-          payload = "".join(oid + "\\n" for oid in blob_oids).encode("ascii")
-          raw = git("cat-file", "--batch", input=payload).stdout
+          payload = "".join(oid + "\n" for oid in blob_oids).encode("ascii")
+          raw = subprocess.run(["git", "cat-file", "--batch"], input=payload, check=True, capture_output=True).stdout
 
           pos, found = 0, {}
           for _ in blob_oids:
-              end = raw.find(b"\\n", pos)
+              end = raw.find(b"\n", pos)
               if end < 0:
                   raise RuntimeError(f"Malformed cat-file header at offset {pos}")
               header = raw[pos:end].decode("ascii").split()
@@ -70,7 +70,7 @@ jobs:
               size = int(size_text)
               start = end + 1
               blob = raw[start:start + size]
-              if len(blob) != size or raw[start + size:start + size + 1] != b"\\n":
+              if len(blob) != size or raw[start + size:start + size + 1] != b"\n":
                   raise RuntimeError(f"Malformed blob payload: {oid}")
               digest = hashlib.sha256(blob).hexdigest()
               if digest in (HISTORICAL, head_digest):
@@ -100,7 +100,7 @@ jobs:
               "scope": "all Git objects fetched from advertised branch and tag refs; unadvertised server-side dangling objects are not guaranteed to be transferred",
           }
           report = Path(os.environ["RUNNER_TEMP"]) / "e2-provenance-scan.json"
-          report.write_text(json.dumps(result, indent=2) + "\\n", encoding="utf-8")
+          report.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
           print(json.dumps(result, indent=2))
           if found.get(HISTORICAL):
               oid = found[HISTORICAL][0]["git_blob_oid"]
