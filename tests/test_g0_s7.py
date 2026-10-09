@@ -381,3 +381,119 @@ def test_s7_reconcile_failed_requires_signed_attestation():
     assert m.evidence_registry[-1]["status"] == "unverified"
     assert m.evidence_registry[-1]["verification_reason"] == "missing_signature"
     assert "A2" not in m.attempts
+
+def test_s7_valid_signed_reconciliation_releases_lock_without_executing():
+    clock = FakeClock(now_ms=NOW)
+    m = Membrane(KernelBridge(), clock=clock, tau_k_ms=TAU)
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=False, nonce="n1"
+    )
+    clock.advance_to(NOW + TAU)
+    assert m.check_qualification_timeouts() == ["A1"]
+    effects_before = list(m.sink.effects)
+    permits_before = _permit_snapshot(m)
+
+    attestation = sign_attestation(
+        attestation_id="S7-RECONCILE-VALID",
+        attempt_id="A1", lei="L", nonce="n1",
+    )
+    evidence = Evidence(
+        evidence_id="S7-RECONCILE-VALID",
+        attempt_id="A1",
+        lei="L",
+        nonce="n1",
+        status="FAILED",
+        properties={},
+        reference_scope="operation:LEI-L",
+        reference_snapshot="snapshot:s7-v1",
+        normalization_profile="s7-v1",
+        integrity_verified=True,
+        source_authoritative=True,
+        expires_at_ms=NOW + 60_000,
+        non_execution_confirmed=True,
+        attestation=attestation,
+    )
+
+    result = m.reconcile(attempt_id="A1", evidence=evidence)
+    assert result.client_state == "FAILED"
+    assert m.attempts["A1"].state == AttemptState.FAILED
+    assert m.attempts["A1"].non_execution_confirmed is True
+    assert m.retry_eligible_for("L") is True
+    assert _permit_snapshot(m) == permits_before
+    assert m.sink.effects == effects_before
+    assert m.evidence_registry[-1]["status"] == "verified"
+
+    second = m.process_transaction(
+        lei="L", attempt_id="A2", payload=PAYLOAD, nonce="n2"
+    )
+    assert second.disposition.value == "PASS"
+    assert "A2" in m.attempts and "A2" in m.permits
+    assert len(m.sink.effects) == len(effects_before) + 1
+
+
+def test_s7_unverified_negative_evidence_cannot_trigger_s5_escalation():
+    clock = FakeClock(now_ms=NOW)
+    m = Membrane(
+        KernelBridge(),
+        clock=clock,
+        tau_k_ms=TAU,
+        conflict_sensitive_properties={"exposure"},
+    )
+    m.admit_and_await_qualification(
+        lei="L", attempt_id="A1", payload=PAYLOAD, apply_effect=True, nonce="n1"
+    )
+    clock.advance_to(NOW + TAU)
+    assert m.check_qualification_timeouts() == ["A1"]
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+
+    state_before = _attempt_snapshot(m)
+    permits_before = _permit_snapshot(m)
+    effects_before = list(m.sink.effects)
+    unsigned = sign_attestation(
+        attestation_id="S7-S5-UNVERIFIED",
+        attempt_id="A1", lei="L", nonce="n1", signed=False,
+    )
+    negative = Evidence(
+        evidence_id="S7-S5-FAILED",
+        attempt_id="A1",
+        lei="L",
+        nonce="n1",
+        status="FAILED",
+        properties={},
+        reference_scope="operation:LEI-L",
+        reference_snapshot="snapshot:s7-v1",
+        normalization_profile="s7-v1",
+        integrity_verified=True,
+        source_authoritative=True,
+        expires_at_ms=NOW + 60_000,
+        non_execution_confirmed=True,
+        attestation=unsigned,
+    )
+    committed = Evidence(
+        evidence_id="S7-S5-COMMITTED",
+        attempt_id="A1",
+        lei="L",
+        nonce="n1",
+        status="COMMITTED",
+        properties={},
+        reference_scope="operation:LEI-L",
+        reference_snapshot="snapshot:s7-v1",
+        normalization_profile="s7-v1",
+        integrity_verified=True,
+        source_authoritative=True,
+        expires_at_ms=NOW + 60_000,
+    )
+
+    result = m.evaluate_evidence_batch(
+        attempt_id="A1", evidence_batch=[negative, committed]
+    )
+    assert result.disposition.value == "HOLD"
+    assert result.kernel_decision == "SIGNATURE_INVALID"
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+    assert _attempt_snapshot(m) == state_before
+    assert _permit_snapshot(m) == permits_before
+    assert m.sink.effects == effects_before
+    assert m.governance_quarantine == {}
+    assert not any(event["event"] == "EVIDENCE_CONTRADICTION" for event in m.events)
+    assert m.evidence_registry[-1]["status"] == "unverified"
+    assert m.evidence_registry[-1]["verification_reason"] == "missing_signature"
