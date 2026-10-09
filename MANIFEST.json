@@ -195,7 +195,8 @@
       "run_number": 150,
       "run_id": 37962357582,
       "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962357582",
-      "status": "in_progress"
+      "status": "success",
+      "result": "success"
     },
     "s12_status": {
       "nd1": "PASS",
