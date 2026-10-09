@@ -18,6 +18,7 @@ from tenir_conformance.membrane import (
     Membrane,
 )
 from tenir_conformance.membrane.kernel_bridge import KernelBridge
+from s7_helpers import sign_attestation
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "scenarios" / "G0_S6_SUCCESSFUL_RECONCILIATION.md"
@@ -44,6 +45,17 @@ def _evidence(
     expires_at_ms: int = NOW + 60_000,
     non_execution_confirmed: bool = False,
 ) -> Evidence:
+    attestation = (
+        sign_attestation(
+            attestation_id=f"AT-{evidence_id}",
+            attempt_id=attempt_id,
+            lei=lei,
+            nonce=nonce,
+            non_execution_confirmed=True,
+        )
+        if status.strip().upper() == "FAILED" and non_execution_confirmed is True
+        else None
+    )
     return Evidence(
         evidence_id=evidence_id,
         attempt_id=attempt_id,
@@ -58,6 +70,7 @@ def _evidence(
         source_authoritative=source_authoritative,
         expires_at_ms=expires_at_ms,
         non_execution_confirmed=non_execution_confirmed,
+        attestation=attestation,
     )
 
 
