@@ -33,3 +33,10 @@ case requires zero final effects **and positive operation-level evidence of
 non-execution**; UNKNOWN or HOLD alone does not qualify. A correct single-effect
 case requires exactly one final effect and client-confirmed success. Rates are
 model-specific and do not estimate production probabilities.
+
+
+## E2 reconstructed baseline (2026-10-09)
+
+The pre-S8 E2 baseline is no longer reproducible: its historical script SHA-256 was not found in the reachable Git objects scanned. A new **observed baseline** was recorded using the unchanged `e2_explore.py` (SHA-256 `e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9`) at revision `dccef80d8b118b8585bd5519ec921a46524bf236`. GitHub Actions run [37935448226](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37935448226) explored all four worlds at depth 8 with both backends; the reported state and transition counts matched between backends. See `e2_reconstructed_baseline_2026-10-09.json` and the corresponding entries in `MANIFEST.json`.
+
+This is an observation baseline, **not** a conformance pass. The adversarial world recorded 774,705 I1 violations (effect-at-most-once). This finding is preserved explicitly. D5 is reclassified as: “the pre-S8 baseline is no longer reproducible; a new baseline was established on 2026-10-09 with the unchanged script and identified revision.” S12 remains blocked.
