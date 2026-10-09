@@ -3,7 +3,7 @@
   "title": "Successful Reconciliation & Terminal Convergence",
   "version": "G0",
   "locked_name": "Successful Reconciliation",
-  "implementation_status": "IMPLEMENTATION IN PR / EMPIRICAL VALIDATION PENDING",
+  "implementation_status": "IMPLEMENTED IN PR / EMPIRICALLY VALIDATED — TESTED SEQUENTIAL INTERLEAVINGS ONLY",
   "claim": "Valid, bound evidence may converge UNKNOWN to RESOLVED or FAILED without effects during reconciliation or reuse of the initial permit; FAILED unlock requires explicit non-execution confirmation and no observed effect.",
   "depends_on": [
     "S2",
@@ -26,7 +26,7 @@
       "name": "failure_discovery_and_lei_unlock",
       "initial_state": "UNKNOWN",
       "evidence_outcome": "FAILED",
-      "expected": "FAILED + non_execution_confirmed + effect_delta_0 + no_permit_reuse; retry_eligible is annotation only"
+      "expected": "FAILED + RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION + non_execution_confirmed + effect_delta_0 + no_permit_reuse; retry_eligible is annotation only"
     }
   },
   "invariants": [
