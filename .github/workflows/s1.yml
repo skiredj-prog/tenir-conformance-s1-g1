@@ -69,6 +69,11 @@ jobs:
       - name: Run ND-1 Realm policy divergence gate
         run: python -m pytest tests/test_s12_nd1_realm_divergence.py -v --tb=short
 
+      - name: Run E2 bounded state exploration regression
+        run: |
+          python experiments/e1_e2/e2_explore.py --depth 3 --world honest --out /tmp/e2-honest.json
+          python -c 'import json; r=json.load(open("/tmp/e2-honest.json")); assert not r["violations"], r["violations"]; print({k: r[k] for k in ("world", "depth", "distinct_states", "transitions_checked", "violations")})'
+
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
 
