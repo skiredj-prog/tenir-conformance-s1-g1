@@ -26,6 +26,8 @@ from collections import deque
 
 from tenir_conformance.membrane import (
     AttemptState, Evidence, FakeClock, Membrane, Receipt,
+    DuplicateAttemptID, UnresolvedSameLEI, StaleReceiptError,
+    IncompleteEvidence, BindingError, ContradictoryEvidenceError,
 )
 from tenir_conformance.membrane.kernel_bridge import KernelBridge
 
@@ -168,19 +170,68 @@ def build_events(world_mode):
     return E
 
 
-# ----------------------------------------------------------------- state key
-def key(m: Membrane, w: World):
-    """Full concrete key: every Attempt/Permit field, clock, quarantine, sink, registry, world."""
+# ----------------------------------------------------------------- exact state key
+from collections.abc import Mapping
+from enum import Enum
+
+
+def freeze(value):
+    """Recursively convert state to an exact, immutable, hashable representation."""
+    if isinstance(value, Enum):
+        return ("__enum__", type(value).__module__, type(value).__qualname__, value.value)
+    if isinstance(value, Mapping):
+        return tuple(sorted((freeze(k), freeze(v)) for k, v in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(freeze(v) for v in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(freeze(v) for v in value)
+    if value is None or isinstance(value, (str, bytes, int, float, bool)):
+        return value
+    raise TypeError(f"Unsupported mutable/non-canonical state value: {type(value).__qualname__}")
+
+
+def key(m: Membrane, w: World) -> tuple:
+    """Exact concrete key for all state that can affect future transitions."""
     import dataclasses
-    at = tuple(sorted((i, tuple(sorted((k, str(v)) for k, v in dataclasses.asdict(a).items())))
-                      for i, a in m.attempts.items()))
-    pm = tuple(sorted((i, tuple(sorted((k, str(v)) for k, v in dataclasses.asdict(p).items())))
-                      for i, p in m.permits.items()))
-    q = tuple(sorted((l, str(sorted(v.get("evidence_ids", [])))) for l, v in m.governance_quarantine.items()))
-    ef = tuple(sorted(e["attempt_id"] for e in m.sink.effects))
-    reg = tuple(sorted(m._evidence_registry))
-    return (at, pm, q, ef, tuple(sorted(w.effects.items())), w.advances, m.clock.now_ms, reg,
-            len(m.governance_quarantine_history))
+    attempts = tuple(sorted((aid, freeze(dataclasses.asdict(attempt)))
+                            for aid, attempt in m.attempts.items()))
+    permits = tuple(sorted((aid, freeze(dataclasses.asdict(permit)))
+                           for aid, permit in m.permits.items()))
+    return (
+        attempts, permits, freeze(m.governance_quarantine),
+        freeze(m.governance_quarantine_history), freeze(m.sink.effects),
+        freeze(m._evidence_registry), tuple(sorted(w.effects.items())),
+        w.advances, m.clock.now_ms,
+    )
+
+
+EXPECTED_BUSINESS_REJECTIONS = (
+    DuplicateAttemptID,
+    UnresolvedSameLEI,
+    StaleReceiptError,
+    IncompleteEvidence,
+    BindingError,
+    ContradictoryEvidenceError,
+)
+
+
+def is_expected_rejection(exc: Exception, label: str, m: Membrane) -> bool:
+    """Whitelist documented guard rejections; narrowly classify missing-attempt probes."""
+    if isinstance(exc, EXPECTED_BUSINESS_REJECTIONS):
+        return True
+    # These events are deliberately proposed before their attempt exists.
+    # A KeyError is expected only for that exact invalid-event shape.
+    if isinstance(exc, KeyError):
+        attempt_id = next((aid for aid in IDS if f"({aid}" in label), None)
+        if attempt_id is not None and attempt_id not in m.attempts and label.startswith(
+            ("receipt(", "reconcile(", "declare_failed(", "evidence_batch(", "retry(")
+        ):
+            return True
+    return False
+
+
+def format_state_key(state_key: tuple) -> str:
+    return json.dumps(state_key, default=repr, ensure_ascii=False, indent=2)
 
 
 # ----------------------------------------------------------------- invariants
@@ -250,8 +301,9 @@ def explore(depth, world_mode, max_states=2_000_000):
         return m, World()
 
     m0, w0 = fresh()
-    seen = {hash(key(m0, w0)): 0}
+    seen = {key(m0, w0): 0}
     q = deque([(m0, w0, ())])
+    rejected_transitions = {}
     viol = {}
     first_trace = {}
     transitions = 0
@@ -270,8 +322,25 @@ def explore(depth, world_mode, max_states=2_000_000):
             before = snapshot(m2, w2)
             try:
                 dispatch = fn(m2, w2)
-            except Exception:
-                dispatch = label.startswith(("process", "admit", "retry"))  # state may mutate before raising
+            except Exception as exc:
+                dispatch = label.startswith(("process", "admit", "retry"))
+                if is_expected_rejection(exc, label, m2):
+                    name = type(exc).__name__
+                    rejected_transitions[name] = rejected_transitions.get(name, 0) + 1
+                else:
+                    current_trace = trace + (label,)
+                    print("\\n" + "=" * 72, file=sys.stderr)
+                    print("CRITICAL FAILURE IN STATE EXPLORATION", file=sys.stderr)
+                    print("=" * 72, file=sys.stderr)
+                    print(f"Action déclenchante: {label}", file=sys.stderr)
+                    print("Trace depuis l'état initial:", file=sys.stderr)
+                    for step_num, step_name in enumerate(current_trace, 1):
+                        print(f"  {step_num}. {step_name}", file=sys.stderr)
+                    print("-" * 72, file=sys.stderr)
+                    print(f"État avant l'action: {format_state_key(key(m, w))}", file=sys.stderr)
+                    print(f"Exception inattendue: {type(exc).__name__}: {exc}", file=sys.stderr)
+                    print("=" * 72 + "\\n", file=sys.stderr)
+                    raise
             transitions += 1
             for inv, msg in check(label, dispatch, m2, w2, before):
                 viol.setdefault(inv, 0)
@@ -279,7 +348,7 @@ def explore(depth, world_mode, max_states=2_000_000):
                 tr = trace + (label,)
                 if inv not in first_trace or len(tr) < len(first_trace[inv][0]):
                     first_trace[inv] = (tr, msg)
-            k = hash(key(m2, w2))
+            k = key(m2, w2)
             if transitions % 50000 == 0:
                 print(f"[{time.time()-t0:.0f}s] states={len(seen)} transitions={transitions} queue={len(q)}", file=sys.stderr, flush=True)
             if k not in seen:
@@ -293,6 +362,7 @@ def explore(depth, world_mode, max_states=2_000_000):
     return {
         "world": world_mode, "depth": depth, "distinct_states": len(seen),
         "transitions_checked": transitions, "new_states_by_depth": frontier_by_depth,
+        "expected_rejections": rejected_transitions,
         "violations": viol,
         "shortest_counterexamples": {k: {"trace": list(v[0]), "msg": v[1]} for k, v in first_trace.items()},
         "n_event_types": len(events), "seconds": round(time.time() - t0, 1),
