@@ -242,5 +242,29 @@
     },
     "historical_count_gate": false,
     "evidence_path": "experiments/e1_e2/E2_BASELINES.md"
+  },
+  "latest_cross_realm_conformance": {
+    "pull_request": 24,
+    "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/pull/24",
+    "merged": false,
+    "tested_head_commit": "c950c56469ec8505fabf817d7570e0f9f008e066",
+    "workflow_run": {
+      "run_number": 161,
+      "run_id": 37962996777,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962996777",
+      "result": "success"
+    },
+    "cases": {
+      "S12a": "PASS",
+      "S12b": "PASS",
+      "S12c": "PASS (ND-1)",
+      "S12d": "PASS",
+      "S12e": "PASS",
+      "S12f": "PASS",
+      "S12g": "PASS (ND-2)",
+      "S12h": "PASS"
+    },
+    "status": "PASS_ON_PR_BRANCH_PENDING_MERGE",
+    "scope_note": "Empirical lab result for the tested harness; not production REG conformance."
   }
 }
