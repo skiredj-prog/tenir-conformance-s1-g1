@@ -1,0 +1,17 @@
+{
+  "campaign": "e1_e2",
+  "manuscript_version": "v6.7",
+  "membrane_commit": "3ef1d45e2c393ef2490a90760a75247f8aca5ee2",
+  "scripts": {
+    "e1_baseline.py": "sha256:...",
+    "e2_explore.py": "sha256:..."
+  },
+  "results": {
+    "e1_results.txt": "sha256:...",
+    "r6_adversarial.json": "sha256:...",
+    "r6_false_attest.json": "sha256:...",
+    "r8_honest.json": "sha256:...",
+    "r8_hidden_honest.json": "sha256:..."
+  },
+  "notes": "E2 false_attest and adversarial at depth 6; honest and hidden_honest at depth 8. Depth reported per file. No fixpoint reached. No CI integration for these scripts."
+}
