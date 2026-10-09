@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT))
 from models.s12_cross_realm import run_s12_suite
 from models.s11_transition_binding import run_s11_suite
 from models.s8_concurrent_admission import run_s8_suite
+from models.h4_signature_standing import run_h4_suite
 
 EXPECTED_PATH = ROOT / "expected_adversarial.json"
 OUT_DIR = Path(os.environ.get("HYPOTHESIS_LAB_OUT", ROOT / "artifacts"))
@@ -55,6 +56,7 @@ def main() -> int:
     results.extend(run_s12_suite())
     results.extend(run_s11_suite())
     results.extend(run_s8_suite())
+    results.extend(run_h4_suite())
 
     anomalies: list[dict] = []
     rows = []
@@ -94,7 +96,7 @@ def main() -> int:
         "github_run_id": os.environ.get("GITHUB_RUN_ID"),
         "github_sha": os.environ.get("GITHUB_SHA"),
         "exploration": {
-            "order": ["S12", "S11", "S8"],
+            "order": ["S12", "S11", "S8", "H4"],
             "completeness": "finite explicit-state BFS",
         },
         "verdicts": {
