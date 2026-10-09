@@ -115,5 +115,34 @@
       }
     },
     "disposition": "D5 historical baseline is no longer reproducible. A new observed baseline is recorded as of 2026-10-09 using the unchanged script and exact tested revision. The adversarial I1 violations are retained as a finding, not treated as success. S12 remains blocked."
+  },
+  "e2_baseline_v1": {
+    "script_sha256": "d1488e806b4a784f7776f9ce0979b66034f7bf3076b9f7f19b19cf22cd64f6a0",
+    "status": "SUPERSEDED_UNRECOVERABLE",
+    "reason": "Script never committed; only its hash was recorded. The blob is not present in any Git object on the remote.",
+    "counts": {
+      "honest": 36892,
+      "false_attest": 14446,
+      "hidden_honest": 49502,
+      "adversarial": 30485
+    },
+    "violations": {
+      "adversarial": 42934
+    }
+  },
+  "e2_baseline_v2": {
+    "script_sha256": "e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9",
+    "status": "CURRENT",
+    "tested_commit": "b18e205cc170ea7b0540dbc9f5c4d6b36d15b77a",
+    "workflow_run_id": 37943755826,
+    "workflow_run_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37943755826",
+    "depth": 8,
+    "counts": {
+      "honest": 675,
+      "false_attest": null,
+      "hidden_honest": null,
+      "adversarial": null
+    },
+    "note": "New baseline. adversarial count pending at depth 6. Counterexample traced separately in test_g0_s7 and test_g0_s11_transition."
   }
 }
