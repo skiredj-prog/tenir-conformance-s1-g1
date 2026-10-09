@@ -3,15 +3,22 @@
   "manuscript_version": "v6.7",
   "membrane_commit": "3ef1d45e2c393ef2490a90760a75247f8aca5ee2",
   "scripts": {
-    "e1_baseline.py": "sha256:642db21f0fa8bf18727fb8cbf10178518a8c427c8aaf7fd54bf6f15bfd974633",
-    "e2_explore.py": "sha256:d1488e806b4a784f7776f9ce0979b66034f7bf3076b9f7f19b19cf22cd64f6a0"
+    "e1_baseline.py": "sha256:2ee4f1eb10d219b8d2256c666d36c4888bee02c6869379a490db0435f6e036ee",
+    "e2_explore.py": "sha256:e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9"
   },
   "results": {
-    "e1_results.txt": "sha256:5f57a07db02dabe80181e1d3b545be02630236a6e7de5cf9bcd80f869807f954",
-    "r6_adversarial.json": "sha256:b116e7fb11f3dcba779937dbd86b02c4988e2d5c071c7e21121c92628c11ded2",
-    "r6_false_attest.json": "sha256:b671eb23d8ea323bf1b089af830f23efec87c1cd13481993ba7ad8f2ef762a22",
-    "r8_honest.json": "sha256:b164bcce244349b5d875e77f8c52548defa356ec1775d13c1b6dcea027a342f3",
-    "r8_hidden_honest.json": "sha256:9299413633bf28ddae2fa66dd8b823dc98a84731f14a925651d29e0d5c13192c"
+    "e1_results.txt": "sha256:feafa1bad5843b0e64606eddf10dbae9c1724afc828af80b1f3424657a25df92",
+    "r6_adversarial.json": "sha256:8c5dd9f51f99a79075256e506ccdc22066dac060ce55187dad60396a8a8b6091",
+    "r6_false_attest.json": "sha256:eeef43fbed602cd63a8f49fb492744a4a527c80b2ed192da87435678581d931c",
+    "r8_honest.json": "sha256:831a7b13401b93b4622b1c664331708ffdb4e5e15620784abd2c000e62df351f",
+    "r8_hidden_honest.json": "sha256:c90029d38b9c6e0ef1462760ae80bd937405d078bc718953e3f9ca217679d3cf"
   },
-  "notes": "E2 false_attest and adversarial at depth 6; honest and hidden_honest at depth 8. Depth reported per file. No fixpoint reached. No CI integration for these scripts."
+  "e1_execution": {
+    "workflow": "E1 baseline experiment",
+    "run_id": 37901185858,
+    "run_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37901185858",
+    "tested_commit": "59828ad40b3c114488e6762f959dddf15c6a67af",
+    "status": "success"
+  },
+  "notes": "E1 executed by its dedicated GitHub Actions workflow. E2 false_attest and adversarial at depth 6; honest and hidden_honest at depth 8. Depth reported per file. No E2 fixpoint reached; E2 remains outside the dedicated E1 workflow and conformance CI."
 }
