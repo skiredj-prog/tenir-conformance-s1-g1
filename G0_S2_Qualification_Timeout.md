@@ -1,6 +1,6 @@
 # G0 — S2: Qualification Timeout
 
-**Status:** Candidate operational definition (proposed). Not yet an approved normative scenario of REG / TENIR.  
+**Status:** Executed against the RFC-4 lab membrane; empirically validated for the tested sequential interleavings. This operational result is not, by itself, normative approval of REG / TENIR.  
 **Depends on:** S1 (ACK Loss) membrane behaviour — unresolved LEI lock, client projection `(UNKNOWN, HOLD)`.  
 **Locked name:** Qualification Timeout (not “Timeout” alone).
 
@@ -103,13 +103,7 @@ REQUEST
 Passing tests against the membrane establish that **this membrane** implements the G0 assertions for Qualification Timeout.  
 They do **not** by themselves validate a production gateway, a real distributed transport, or the full TENIR stack beyond the isolation membrane under test.
 
-Correct public statement until S2 is executed against the membrane:
-
-> “G0 for S2 (Qualification Timeout) is frozen. Execution pending.”
-
-After execution:
-
-> “S2 executed against the RFC-4 / TENIR membrane; client projection and LEI lock hold under τ_K expiry.”
+**Observed lab result:** S2 was executed against the RFC-4 lab membrane. The tested cases cover τ_K expiry, the unresolved same-LEI retry guard, and the pre-deadline negative control. This is a sequential-interleaving result, not a production or general concurrency claim.
 
 ---
 
