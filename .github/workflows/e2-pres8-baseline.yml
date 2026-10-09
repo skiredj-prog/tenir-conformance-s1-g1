@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - debug/e2-pres8-baseline
+  pull_request:
+    branches:
+      - debug/e2-pres8-baseline
 
 jobs:
   e2-baseline:
