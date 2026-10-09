@@ -22,11 +22,27 @@
       "expected_status": "VACUOUS",
       "required_actions_subsequence": []
     },
-    "S8-H1": {
+    "S8-P1-adversarial": {
       "expected_status": "FAIL",
       "required_actions_subsequence": ["adversarial_double_effect"]
     },
-    "S8-H1-intended-only": {
+    "S8-P1-intended": {
+      "expected_status": "PASS",
+      "required_actions_subsequence": []
+    },
+    "S8-P2-adversarial": {
+      "expected_status": "FAIL",
+      "required_actions_subsequence": ["adversarial_both_see_clear"]
+    },
+    "S8-P2-intended": {
+      "expected_status": "PASS",
+      "required_actions_subsequence": []
+    },
+    "S8-P3-adversarial": {
+      "expected_status": "FAIL",
+      "required_actions_subsequence": ["adversarial_apply_stale"]
+    },
+    "S8-P3-intended": {
       "expected_status": "PASS",
       "required_actions_subsequence": []
     },
