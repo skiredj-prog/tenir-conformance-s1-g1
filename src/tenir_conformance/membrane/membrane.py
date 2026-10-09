@@ -259,7 +259,6 @@ class Membrane:
         kd = self.bridge.evaluate(payload)
         if not kd.admissible:
             attempt.state = AttemptState.FAILED
-            attempt.non_execution_confirmed = True
             attempt.qualified = True
             attempt.non_execution_confirmed = True
             attempt.retry_eligible = False
@@ -345,7 +344,6 @@ class Membrane:
         kd = self.bridge.evaluate(payload)
         if not kd.admissible:
             attempt.state = AttemptState.FAILED
-            attempt.non_execution_confirmed = True
             attempt.qualified = True
             attempt.non_execution_confirmed = True
             attempt.retry_eligible = False
