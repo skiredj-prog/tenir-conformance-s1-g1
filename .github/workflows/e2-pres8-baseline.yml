@@ -1,4 +1,4 @@
-name: E2 backend differential baseline
+name: E2 depth-8 backend and world differential
 
 on:
   push:
@@ -8,14 +8,18 @@ on:
     branches:
       - debug/e2-pres8-baseline
 
+permissions:
+  contents: read
+
 jobs:
-  e2-backend-differential:
+  e2-differential:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         backend: [fallback, real]
+        world: [honest, false_attest, hidden_honest, adversarial]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,30 +30,40 @@ jobs:
       - name: Install pinned TENIR policy engine
         if: matrix.backend == 'real'
         run: python -m pip install "git+https://github.com/skiredj-prog/tenir_governance.git@05d9a182d1c99e52015cc0e868cce50a4f18a9b4"
-      - name: Record inputs and selected backend
+      - name: Record provenance and assert selected backend
         env:
           BACKEND: ${{ matrix.backend }}
+          WORLD: ${{ matrix.world }}
         run: |
           git rev-parse HEAD
           sha256sum src/tenir_conformance/membrane/membrane.py experiments/e1_e2/e2_explore.py
           python - <<'PY'
-          from tenir_conformance.membrane.kernel_bridge import _HAS_TENIR
           import os
+          from importlib.metadata import version, PackageNotFoundError
+          from tenir_conformance.membrane.kernel_bridge import _HAS_TENIR
           print("requested_backend:", os.environ["BACKEND"])
+          print("world:", os.environ["WORLD"])
           print("kernel_bridge_has_tenir:", _HAS_TENIR)
-          expected = os.environ["BACKEND"] == "real"
-          assert _HAS_TENIR is expected, f"backend mismatch: expected real={expected}, got {_HAS_TENIR}"
+          try:
+              print("tenir_governance_version:", version("tenir-governance"))
+          except PackageNotFoundError:
+              print("tenir_governance_version: NOT_INSTALLED")
+          expected_real = os.environ["BACKEND"] == "real"
+          assert _HAS_TENIR is expected_real, f"backend mismatch: expected real={expected_real}, got {_HAS_TENIR}"
           PY
-      - name: Run honest E2 at depth 8
+      - name: Run E2 at depth 8
         env:
           BACKEND: ${{ matrix.backend }}
+          WORLD: ${{ matrix.world }}
         run: |
-          python experiments/e1_e2/e2_explore.py --depth 8 --world honest --out "/tmp/e2-honest-${BACKEND}.json"
+          python experiments/e1_e2/e2_explore.py --depth 8 --world "${WORLD}" --out "/tmp/e2-${WORLD}-${BACKEND}.json"
           python - <<'PY'
           import json, os
-          p = f"/tmp/e2-honest-{os.environ['BACKEND']}.json"
+          p = f"/tmp/e2-{os.environ['WORLD']}-{os.environ['BACKEND']}.json"
           r = json.load(open(p, encoding="utf-8"))
           print("backend:", os.environ["BACKEND"])
+          print("world:", r["world"])
+          print("depth:", r["depth"])
           print("distinct_states:", r["distinct_states"])
           print("transitions_checked:", r["transitions_checked"])
           print("new_states_by_depth:", json.dumps(r["new_states_by_depth"], sort_keys=True))
@@ -58,6 +72,6 @@ jobs:
       - name: Upload diagnostic result
         uses: actions/upload-artifact@v4
         with:
-          name: e2-honest-${{ matrix.backend }}
-          path: /tmp/e2-honest-${{ matrix.backend }}.json
+          name: e2-${{ matrix.world }}-${{ matrix.backend }}
+          path: /tmp/e2-${{ matrix.world }}-${{ matrix.backend }}.json
           if-no-files-found: error
