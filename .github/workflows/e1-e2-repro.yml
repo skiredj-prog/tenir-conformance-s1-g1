@@ -5,6 +5,7 @@ on:
     branches:
       - repro/e1-e2-20261009
       - test/e2-strict-harness-20261009
+      - forensic/e2-key-audit-20261009
 
 permissions:
   contents: read
@@ -28,6 +29,11 @@ jobs:
           python --version
           git rev-parse HEAD
           git rev-parse 84e46d94a6259ad1ec57757074a422d2f356ec49
+      - name: Run forensic comparison of E2 state keys
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          PYTHONPATH=src python experiments/e1_e2/e2_forensic_audit_real.py --depth 6 --world adversarial --out /tmp/e2-forensic.json
       - name: Re-run E1 and compare committed output
         continue-on-error: false
         run: |
@@ -72,4 +78,5 @@ jobs:
           path: |
             /tmp/e1_actual.txt
             /tmp/e1-e2-repro/
+            /tmp/e2-forensic.json
           if-no-files-found: warn
