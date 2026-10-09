@@ -431,6 +431,26 @@ class Membrane:
                 events=[e["event"] for e in self.events])
         # The governed object's identity and scope are checked before registration
         # and before the kernel. Payload digest binding prevents substitution.
+        if transition.tau_id != self.tau_contract.tau_id:
+            return MembraneResult(Disposition.HARD_VETO, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "TRANSITION_TAU_MISMATCH", False,
+                events=[e["event"] for e in self.events])
+        expected_digest = payload_sha256(payload)
+        actual_digest = (transition.payload_digest.hex() if isinstance(transition.payload_digest, bytes)
+                         else transition.payload_digest.removeprefix("sha256:").lower())
+        if actual_digest != expected_digest:
+            self._log("TRANSITION_BINDING_REJECTED", lei=lei, attempt_id=attempt_id,
+                      transition_hash=transition_hash, expected_payload_sha256=expected_digest,
+                      actual_payload_digest=actual_digest)
+            return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "BINDING_VIOLATION", False,
+                events=[e["event"] for e in self.events])
+        if not transition.target_postconditions:
+            self._log("TRANSITION_POSTCONDITIONS_MISSING", lei=lei, attempt_id=attempt_id,
+                      transition_hash=transition_hash)
+            return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "TARGET_POSTCONDITIONS_UNDECLARED", False,
+                events=[e["event"] for e in self.events])
         if transition.target_realm != "legacy":
             realm_policy = self.realm_policies.get(transition.target_realm)
             if realm_policy is None:
@@ -455,26 +475,6 @@ class Membrane:
                 return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                     len(self.sink.effects), 0.0, "TARGET_REALM_POLICY_REJECTED", False,
                     events=[e["event"] for e in self.events])
-        if transition.tau_id != self.tau_contract.tau_id:
-            return MembraneResult(Disposition.HARD_VETO, AttemptState.UNKNOWN.value, False,
-                len(self.sink.effects), 0.0, "TRANSITION_TAU_MISMATCH", False,
-                events=[e["event"] for e in self.events])
-        expected_digest = payload_sha256(payload)
-        actual_digest = (transition.payload_digest.hex() if isinstance(transition.payload_digest, bytes)
-                         else transition.payload_digest.removeprefix("sha256:").lower())
-        if actual_digest != expected_digest:
-            self._log("TRANSITION_BINDING_REJECTED", lei=lei, attempt_id=attempt_id,
-                      transition_hash=transition_hash, expected_payload_sha256=expected_digest,
-                      actual_payload_digest=actual_digest)
-            return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
-                len(self.sink.effects), 0.0, "BINDING_VIOLATION", False,
-                events=[e["event"] for e in self.events])
-        if not transition.target_postconditions:
-            self._log("TRANSITION_POSTCONDITIONS_MISSING", lei=lei, attempt_id=attempt_id,
-                      transition_hash=transition_hash)
-            return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
-                len(self.sink.effects), 0.0, "TARGET_POSTCONDITIONS_UNDECLARED", False,
-                events=[e["event"] for e in self.events])
         allowed_sources = transition.scope.get("source_realms")
         if allowed_sources is not None and transition.source_realm not in allowed_sources:
             return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
