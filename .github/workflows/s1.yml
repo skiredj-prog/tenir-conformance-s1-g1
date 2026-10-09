@@ -1,4 +1,4 @@
-name: Membrane CI (S1–S8 + T7/T8)
+name: Membrane CI (S1–S10 + T7/T8)
 
 on:
   push:
@@ -60,6 +60,9 @@ jobs:
       - name: Generate S8 concurrency evidence artifacts
         run: PYTHONPATH=src python tools/run_s8.py
 
+      - name: Run G0 S10 signed TAU scope tests
+        run: python -m pytest tests/test_g0_s10_tau_scope.py -v --tb=short
+
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
 
@@ -117,4 +120,11 @@ jobs:
         with:
           name: s8-evidence
           path: artifacts/s8/
+          if-no-files-found: error
+
+      - name: Upload S10 TAU scope evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: s10-evidence
+          path: artifacts/s10/
           if-no-files-found: error
