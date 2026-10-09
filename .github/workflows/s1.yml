@@ -1,4 +1,4 @@
-name: Membrane CI (S1–S6 + T7/T8)
+name: Membrane CI (S1–S7 + T7/T8)
 
 on:
   push:
@@ -51,6 +51,9 @@ jobs:
       - name: Run G0 S6 Reconciliation tests
         run: python -m pytest tests/test_g0_s6_reconciliation.py -v --tb=short
 
+      - name: Run G0 S7 Ed25519 attestation tests
+        run: python -m pytest tests/test_g0_s7.py -v --tb=short
+
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
 
@@ -94,4 +97,11 @@ jobs:
         with:
           name: s6-evidence
           path: artifacts/s6/
+          if-no-files-found: error
+
+      - name: Upload S7 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: s7-evidence
+          path: artifacts/s7/
           if-no-files-found: error
