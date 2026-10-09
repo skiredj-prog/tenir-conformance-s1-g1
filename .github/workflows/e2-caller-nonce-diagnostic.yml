@@ -53,6 +53,24 @@ jobs:
         env:
           PYTHONHASHSEED: "0"
         run: python experiments/e1_e2/e2_explore.py --world honest --depth 8 --out /tmp/e2-honest-depth8.json
+      - name: Probe pre-S7 membrane with current explorer
+        continue-on-error: true
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          set +e
+          git fetch --no-tags origin 84e46d94a6259ad1ec57757074a422d2f356ec49
+          git worktree add /tmp/e2-pre-s7 84e46d94a6259ad1ec57757074a422d2f356ec49
+          mkdir -p /tmp/e2-pre-s7/experiments/e1_e2
+          cp experiments/e1_e2/e2_explore.py /tmp/e2-pre-s7/experiments/e1_e2/e2_explore.py
+          python -m pip install -e "/tmp/e2-pre-s7[test]"
+          cd /tmp/e2-pre-s7
+          python experiments/e1_e2/e2_explore.py --world honest --depth 8 --out /tmp/e2-pre-s7-depth8.json > /tmp/e2-pre-s7.log 2>&1
+          rc=$?
+          cat /tmp/e2-pre-s7.log
+          echo "PRE_S7_EXPLORER_EXIT=$rc"
+          if [ -f /tmp/e2-pre-s7-depth8.json ]; then cat /tmp/e2-pre-s7-depth8.json; fi
+          exit 0
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
