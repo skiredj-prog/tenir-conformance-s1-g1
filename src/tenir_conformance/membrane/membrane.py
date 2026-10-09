@@ -13,6 +13,7 @@ from typing import Any, Callable, Mapping, Sequence
 from .attestation import NonExecutionAttestation, load_trust_root, verify_attestation
 from .kernel_bridge import KernelBridge
 from .tau_contract import TAUContract
+from .transition import Transition, canonical_hash, payload_sha256
 
 
 class DuplicateAttemptID(Exception):
@@ -358,7 +359,9 @@ class Membrane:
             self._log("PERMIT_CONSUMED", lei=attempt.lei, attempt_id=attempt.attempt_id)
             return permit
 
-    def process_transaction(self, *, lei: str, attempt_id: str, payload: Mapping[str, Any],
+    def process_transaction(self, *, lei: str, attempt_id: str,
+                            transition: Transition | None = None,
+                            payload: Mapping[str, Any] | None = None,
                             nonce: str = "", request_lost: bool = False,
                             receipt_lost: bool = False,
                             target_rejected: bool = False,
@@ -366,22 +369,77 @@ class Membrane:
                             principal: str | None = None) -> MembraneResult:
         if not isinstance(nonce, str) or not nonce.strip():
             raise ValueError("NONCE_REQUIRED")
-        # TAU scope is checked before attempt registration and before kernel evaluation.
-        resolved_action = payload.get("action_class", "default") if action_class is None else action_class
-        resolved_principal = payload.get("principal", "default") if principal is None else principal
+        if transition is None and payload is None:
+            # Strict object-path guard: there is no implicit transition to govern.
+            self._log("TRANSITION_REQUIRED", lei=lei, attempt_id=attempt_id)
+            raise ValueError("TRANSITION_REQUIRED")
+        if payload is None or not isinstance(payload, Mapping):
+            raise ValueError("PAYLOAD_REQUIRED")
+        # Compatibility adapter for pre-S11 callers. New callers must pass an
+        # explicit Transition; this adapter is retained so earlier S1-S10
+        # scenarios remain executable while their migration is staged.
+        if transition is None:
+            resolved_action = payload.get("action_class", "default") if action_class is None else action_class
+            resolved_principal = payload.get("principal", "default") if principal is None else principal
+            transition = Transition(
+                tau_id=self.tau_contract.tau_id,
+                source_realm="legacy",
+                target_realm="legacy",
+                action_class=resolved_action,
+                principal=resolved_principal,
+                scope={"lei": lei},
+                payload_digest=payload_sha256(payload),
+                evidence_refs=(),
+                source_preconditions=("legacy-adapter",),
+                target_postconditions=("effect-applied",),
+                declared_at="1970-01-01T00:00:00Z",
+            )
+        if not isinstance(transition, Transition):
+            raise TypeError("TRANSITION_REQUIRED")
+        transition_hash = canonical_hash(transition)
+        # The governed object's identity and scope are checked before registration
+        # and before the kernel. Payload digest binding prevents substitution.
+        if transition.tau_id != self.tau_contract.tau_id:
+            return MembraneResult(Disposition.HARD_VETO, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "TRANSITION_TAU_MISMATCH", False,
+                events=[e["event"] for e in self.events])
+        expected_digest = payload_sha256(payload)
+        actual_digest = (transition.payload_digest.hex() if isinstance(transition.payload_digest, bytes)
+                         else transition.payload_digest.removeprefix("sha256:").lower())
+        if actual_digest != expected_digest:
+            self._log("TRANSITION_BINDING_REJECTED", lei=lei, attempt_id=attempt_id,
+                      transition_hash=transition_hash, expected_payload_sha256=expected_digest,
+                      actual_payload_digest=actual_digest)
+            return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "BINDING_VIOLATION", False,
+                events=[e["event"] for e in self.events])
+        if not transition.target_postconditions:
+            self._log("TRANSITION_POSTCONDITIONS_MISSING", lei=lei, attempt_id=attempt_id,
+                      transition_hash=transition_hash)
+            return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "TARGET_POSTCONDITIONS_UNDECLARED", False,
+                events=[e["event"] for e in self.events])
+        transition_lei = transition.scope.get("lei", lei)
+        if transition_lei != lei:
+            return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "TRANSITION_LEI_SCOPE_MISMATCH", False,
+                events=[e["event"] for e in self.events])
         in_scope, scope_reason = self.tau_contract.scope_check(
-            lei=lei, action_class=resolved_action, principal=resolved_principal
+            lei=lei, action_class=transition.action_class, principal=transition.principal
         )
         if not in_scope:
             self._log("TAU_SCOPE_REJECTED", tau_id=self.tau_contract.tau_id,
-                      lei=lei, action_class=resolved_action, principal=resolved_principal,
-                      reason=scope_reason, manifest_sha256=self.tau_contract.manifest_sha256)
+                      lei=lei, action_class=transition.action_class,
+                      principal=transition.principal, reason=scope_reason,
+                      manifest_sha256=self.tau_contract.manifest_sha256,
+                      transition_hash=transition_hash)
             return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                 len(self.sink.effects), 0.0, scope_reason, False,
                 events=[e["event"] for e in self.events])
-        self._log("TAU_SCOPE_ADMITTED", tau_id=self.tau_contract.tau_id,
-                  lei=lei, action_class=resolved_action, principal=resolved_principal,
-                  manifest_sha256=self.tau_contract.manifest_sha256)
+        self._log("TRANSITION_ADMITTED", tau_id=transition.tau_id,
+                  transition_hash=transition_hash, source_realm=transition.source_realm,
+                  target_realm=transition.target_realm, action_class=transition.action_class,
+                  principal=transition.principal, payload_digest=expected_digest)
         try:
             attempt = self._register_attempt(
                 lei=lei, attempt_id=attempt_id, nonce=nonce, issue_permit=False
@@ -401,7 +459,8 @@ class Membrane:
             attempt.non_execution_confirmed = True
             attempt.retry_eligible = False
             attempt.failure_reason = "KERNEL_HARD_VETO"
-            self._log("KernelVeto", lei=lei, attempt_id=attempt_id, decision=kd.decision)
+            self._log("KernelVeto", lei=lei, attempt_id=attempt_id, decision=kd.decision,
+                      transition_hash=transition_hash)
             self._log("AttemptFailed", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO", non_execution_confirmed=True)
             self._log("LEIUnlocked", lei=lei, attempt_id=attempt_id,
@@ -424,21 +483,21 @@ class Membrane:
                 disp, st = self._client_projection(attempt)
                 return MembraneResult(disp, st, False, len(self.sink.effects), kd.score, kd.decision, False,
                     events=[e["event"] for e in self.events])
-            # A directly observed target rejection proves this attempt did not commit.
-            # It is a qualified failure, not a successful resolution.
             attempt.receipt_observed = True
             attempt.state = AttemptState.FAILED
             attempt.non_execution_confirmed = True
             attempt.qualified = True
             attempt.retry_eligible = False
             attempt.failure_reason = "TARGET_REJECTED"
-            self._log("TARGET_REJECTED_OBSERVED", lei=lei, attempt_id=attempt_id)
+            self._log("TARGET_REJECTED_OBSERVED", lei=lei, attempt_id=attempt_id,
+                      transition_hash=transition_hash)
             return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value, True,
                 len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
                 events=[e["event"] for e in self.events])
         self.sink.apply(lei, attempt_id, payload)
         attempt.effect_observed = True
-        self._log("EFFECT_APPLIED", lei=lei, attempt_id=attempt_id)
+        self._log("EFFECT_APPLIED", lei=lei, attempt_id=attempt_id,
+                  transition_hash=transition_hash)
         if receipt_lost:
             attempt.state = AttemptState.UNKNOWN
             self._log("T3_ReceiptLost", lei=lei, attempt_id=attempt_id, kind="RECEIPT_LOST")
@@ -448,7 +507,8 @@ class Membrane:
         attempt.receipt_observed = True
         attempt.state = AttemptState.RESOLVED
         attempt.qualified = True
-        self._log("RECEIPT_OBSERVED", lei=lei, attempt_id=attempt_id)
+        self._log("RECEIPT_OBSERVED", lei=lei, attempt_id=attempt_id,
+                  transition_hash=transition_hash)
         return MembraneResult(Disposition.PASS, AttemptState.RESOLVED.value, True,
             len(self.sink.effects), kd.score, kd.decision, False,
             events=[e["event"] for e in self.events])
