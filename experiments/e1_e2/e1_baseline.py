@@ -90,7 +90,7 @@ def run_membrane(seq, reconcile):
         aid, nonce = f"A{i+1}", f"n{i+1}"
         n_attempts = len(m.attempts)
         if f == "F4":
-            r = m.process_transaction(lei="L", attempt_id=aid, payload=OK, target_rejected=True)
+            r = m.process_transaction(lei="L", attempt_id=aid, payload=OK, nonce=nonce, target_rejected=True)
         else:
             r = m.admit_and_await_qualification(
                 lei="L", attempt_id=aid, payload=OK, apply_effect=bool(EFFECT[f]), nonce=nonce)
