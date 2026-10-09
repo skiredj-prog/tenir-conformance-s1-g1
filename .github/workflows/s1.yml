@@ -1,4 +1,4 @@
-name: Membrane CI (S1–S11 + T7/T8)
+name: Membrane CI (S1–S12 + Hypothesis Lab)
 
 on:
   push:
@@ -88,12 +88,32 @@ jobs:
               print(f'{world}: distinct_states={actual}, transitions_checked={result["transitions_checked"]}, violations={violations}')
               if violations:
                   raise SystemExit(f"INVARIANT VIOLATION in {world}: {violations}")
-          print("E2 completed in all four worlds with no invariant violations. Historical state counts are not a CI gate because the pre-PR#6 explorer/membrane pair is unrecoverable.")
+          print("E2 completed in all four worlds with no invariant violations.")
           PY
-
 
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
+
+      - name: Hypothesis Lab (non-blocking adversarial models S12→S11→S8)
+        id: hypothesis_lab
+        continue-on-error: true
+        env:
+          HYPOTHESIS_LAB_OUT: artifacts/hypothesis_lab
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/hypothesis_lab
+          python hypothesis_lab/run_lab.py
+          echo "Hypothesis Lab finished (non-blocking). Adversarial FAIL is expected."
+
+      - name: Upload Hypothesis Lab report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hypothesis-lab-report
+          path: |
+            artifacts/hypothesis_lab/hypothesis_lab_report.json
+            artifacts/hypothesis_lab/hypothesis_lab_report.sha256
+          if-no-files-found: warn
 
       - name: Upload S1 evidence
         uses: actions/upload-artifact@v4
