@@ -1,32 +1,43 @@
 # Scientific status of this package
 
-**HEAD reference for this statement:** `487db4f` (update when re-validating).
+**Validated source commit:** `84e46d94a6259ad1ec57757074a422d2f356ec49` (PR #4 squash merge).
+**Post-merge CI:** [Run #56 — Membrane CI (S1–S6 + T7/T8)](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37865202825) — **PASS**.
+**Manifest:** [MANIFEST.json](./MANIFEST.json).
 
 ## What this package establishes
 
-1. **G0 operational definitions** for S1–S5 (ACK loss, qualification timeout, duplicate request, stale receipt, contradictory evidence).
-2. An **RFC-4 lab membrane** (`Membrane` + `Receipt` + escalation/quarantine) implementing the corresponding guards.
-3. **Empirical PASS** on sequential interleavings via CI (`Membrane CI (S1–S5 + T7/T8)`), including:
-   - S1 membrane path against a real `tenir_governance.PolicyEngine` for scoring
-   - S4 strict A6 (`Receipt` mandatory for RESOLVED; legacy kwargs cannot qualify)
-   - S5 contradiction → `ESCALATED` / LEI `QUARANTINED` with Δ effects = 0
-4. **Evidence artifacts** (JSON/JSONL, spec & scenario SHA-256) uploaded per family (`s1-evidence` … `s5-evidence`).
+1. **G0 operational definitions** for S1–S6: lost evidence after commit, qualification timeout, duplicate request, stale receipt, contradictory evidence, and successful reconciliation.
+2. An **RFC-4 lab membrane** implementing the corresponding guards and state transitions.
+3. **Empirical PASS for the tested sequential interleavings** through CI, including:
+   - S1 membrane path against a real `tenir_governance.PolicyEngine` for scoring;
+   - S4 strict A6: a `Receipt` is mandatory for RESOLVED; legacy kwargs cannot qualify;
+   - S5 contradictory evidence leading to escalation/quarantine with zero new effects;
+   - S6 reconciliation from UNKNOWN to RESOLVED or FAILED, with no execution effect or permit mutation during reconciliation.
+4. Seven dedicated S6 tests, alongside the S1–S5 and T7/T8 suites. The post-merge workflow passed and uploaded evidence archives for S1–S6.
+5. A machine-readable manifest records the validated source commit, CI run, evidence archive URLs, and GitHub-reported SHA-256 digests.
 
-## What this package does **not** establish
+## Important epistemic boundary
 
-- Safety under **unconstrained asynchronous concurrency**
-- **Production cryptographic** verification of evidence (signatures, PKI)
-- Correctness of **business-unit normalization** converters (mixed profiles are rejected; converters are not proven)
-- That any **production REG/TENIR gateway** is certified conformant
-- A formal mathematical proof (TLC / model checking of the full concurrent system)
+`Evidence.non_execution_confirmed` is a **declarative upstream attestation**. The lab membrane does not itself cryptographically verify that the target did not execute. A production deployment must back this attestation with a signed reconciliation receipt from the target or an independent audit path.
+
+The CI result validates only the **tested sequential interleavings**. It is not a proof of unconstrained concurrent/thread-safe execution.
+
+## What this package does not establish
+
+- Safety under unconstrained asynchronous concurrency.
+- Production cryptographic verification of evidence (signatures, PKI).
+- Correctness of business-unit normalization converters; mixed profiles are rejected, but converters are not proven.
+- Conformance or certification of any production REG/TENIR gateway.
+- A formal mathematical proof or full concurrent-system model check.
 
 ## Correct public statement
 
-> G0 S1–S5 have been empirically validated against the RFC-4 lab membrane for the tested sequential interleavings, with CI artifacts. This is not a general concurrency proof and not a production certification.
+> G0 S1–S6 have been empirically validated against the RFC-4 lab membrane for the tested sequential interleavings, with CI evidence artifacts and recorded archive digests. This is not a general concurrency proof, production cryptographic verification, or production certification.
 
-## Next steps for stronger validation
+## Remaining work outside this repository
 
-1. G0 S6 — Successful reconciliation (terminal convergence without new effects).
-2. Minimal signed-evidence adapter (integrity not only injected).
-3. Export lifecycle vectors into `reg-conformance`.
-4. Keep this file in sync with each validation HEAD.
+- Update `REFERENCE_CHALLENGE.md` to mark S6 complete.
+- Update manuscript v6.6.1 to v6.7, including the explicit upstream-attestation limitation above.
+- Keep this status and `MANIFEST.json` synchronized with future validation runs.
+
+Phase 1 is complete at the lab-validation level. Do not infer production readiness or start multi-agent Phase 2 from this result.
