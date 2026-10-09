@@ -26,7 +26,7 @@ def test_s8a_barrier_synchronized_same_lei_admits_at_most_one(monkeypatch):
         # Corrected implementation: do not wait inside the critical section,
         # otherwise the first thread would wait for a second thread blocked
         # on the same lock.
-        if lei == "L" and not unresolved and not (lock is not None and lock.locked()):
+        if lei == "L" and not unresolved and not (lock is not None and getattr(lock, "_is_owned", lambda: False)()):
             both_checked.wait(timeout=5)
         return unresolved
 
