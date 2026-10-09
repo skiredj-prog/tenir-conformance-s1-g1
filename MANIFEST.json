@@ -122,5 +122,47 @@
     "validation covers tested sequential interleavings only, not unconstrained concurrency",
     "this lab result does not certify production REG/TENIR conformance"
   ],
-  "phase_status": "PHASE_1_LAB_VALIDATION_COMPLETE; PHASE_2_NOT_STARTED"
+  "phase_status": "PHASE_1_LAB_VALIDATION_COMPLETE; PHASE_2_NOT_STARTED",
+  "e1_baseline": {
+    "workflow": "E1 baseline experiment",
+    "run_number": 4,
+    "run_id": 37902575846,
+    "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37902575846",
+    "status": "success",
+    "tested_commit": "3eb4739fd1ecd25d378ce16e20022ba1b5f22624",
+    "artifact_id": 11602869279,
+    "artifact_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37902575846/artifacts/11602869279",
+    "results_path": "experiments/e1_e2/e1_results.txt",
+    "experiment_manifest": "experiments/e1_e2/MANIFEST.json",
+    "metrics": {
+      "sequences": 53,
+      "no_effect_expected": 15,
+      "effect_expected": 38,
+      "correct_no_effect_rate_percent": {
+        "B1": 6.67,
+        "B2": 6.67,
+        "M0": 6.67,
+        "M1": 100
+      },
+      "correct_single_effect_rate_percent": {
+        "B1": 18.42,
+        "B2": 34.21,
+        "M0": 2.63,
+        "M1": 100
+      },
+      "blocked_retry_attempts": {
+        "B1": 0,
+        "B2": 0,
+        "M0": 96,
+        "M1": 0
+      },
+      "sequences_with_at_least_one_block": {
+        "B1": 0,
+        "B2": 0,
+        "M0": 51,
+        "M1": 0
+      }
+    },
+    "scope": "Exhaustive enumeration of the specified 53 sequential fault sequences; not a production probability estimate."
+  }
 }
