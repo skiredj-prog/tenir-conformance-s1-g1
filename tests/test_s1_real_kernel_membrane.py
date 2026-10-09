@@ -8,11 +8,12 @@ PAYLOAD = {"P": 0.5, "V": 0.5, "K": 1.0, "option_space": 1.0}
 def run_subcase(*, request_lost: bool, receipt_lost: bool, target_rejected: bool):
     membrane = Membrane(KernelBridge())
     first = membrane.process_transaction(
+        nonce="n-s1real-process_transaction-01",
         lei="L", attempt_id="A", payload=PAYLOAD,
         request_lost=request_lost, receipt_lost=receipt_lost,
         target_rejected=target_rejected,
     )
-    retry = membrane.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
+    retry = membrane.retry(nonce="n-s1real-retry-01", lei="L", attempt_id="A-retry", payload=PAYLOAD)
     return first, retry, membrane
 
 
@@ -69,7 +70,7 @@ def test_retry_does_not_call_kernel_when_same_lei_is_unresolved():
 
     bridge = CountingBridge()
     membrane = Membrane(bridge)
-    membrane.process_transaction(lei="L", attempt_id="A", payload=PAYLOAD, receipt_lost=True)
+    membrane.process_transaction(nonce="n-s1real-process_transaction-02", lei="L", attempt_id="A", payload=PAYLOAD, receipt_lost=True)
     assert bridge.calls == 1
-    membrane.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
+    membrane.retry(nonce="n-s1real-retry-02", lei="L", attempt_id="A-retry", payload=PAYLOAD)
     assert bridge.calls == 1
