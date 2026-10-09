@@ -69,6 +69,9 @@ jobs:
       - name: Run ND-1 Realm policy divergence gate
         run: python -m pytest tests/test_s12_nd1_realm_divergence.py -v --tb=short
 
+      - name: Run S12 cross-Realm conformance cases (S12a, b, d–h; S12c is ND-1)
+        run: python -m pytest tests/test_s12_cross_realm_conformance.py -v --tb=short
+
       - name: Run E2 bounded state exploration (all four worlds; no historical count gate)
         run: |
           set -euo pipefail
