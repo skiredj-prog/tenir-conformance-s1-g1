@@ -1,0 +1,209 @@
+name: E2 depth-3 key differential
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/e2-depth3-key-diff.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install candidate package dependencies
+        run: pip install -e ".[test]"
+      - name: Preserve exact explorer and instrument state keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(sha256sum experiments/e1_e2/e2_explore.py | awk '{print $1}')"
+          echo "E2 explorer SHA-256: $actual"
+          test "$actual" = "e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9"
+          python - <<'PY'
+          from pathlib import Path
+          src = Path("experiments/e1_e2/e2_explore.py").read_text(encoding="utf-8")
+          replacements = [
+              (
+                  "    seen = {hash(key(m0, w0)): 0}\n    q = deque([(m0, w0, ())])",
+                  "    initial_key = key(m0, w0)\n"
+                  "    initial_hash = hash(initial_key)\n"
+                  "    seen = {initial_hash: 0}\n"
+                  "    state_records = {initial_hash: {\"depth\": 0, \"full_key\": initial_key, \"trace\": []}}\n"
+                  "    root_transitions = []\n"
+                  "    hash_collisions = []\n"
+                  "    q = deque([(m0, w0, ())])"
+              ),
+              (
+                  "            try:\n"
+                  "                dispatch = fn(m2, w2)\n"
+                  "            except Exception:\n"
+                  "                dispatch = label.startswith((\"process\", \"admit\", \"retry\"))  # state may mutate before raising\n"
+                  "            transitions += 1",
+                  "            transition_error = None\n"
+                  "            try:\n"
+                  "                dispatch = fn(m2, w2)\n"
+                  "            except Exception as exc:\n"
+                  "                transition_error = f\"{type(exc).__name__}: {exc}\"\n"
+                  "                dispatch = label.startswith((\"process\", \"admit\", \"retry\"))  # state may mutate before raising\n"
+                  "            transitions += 1\n"
+                  "            full_k = key(m2, w2)\n"
+                  "            if not trace:\n"
+                  "                root_transitions.append({\"label\": label, \"dispatch\": dispatch, \"exception\": transition_error, \"full_key\": full_k})"
+              ),
+              (
+                  "            k = hash(key(m2, w2))",
+                  "            k = hash(full_k)\n"
+                  "            if k in state_records and state_records[k][\"full_key\"] != full_k:\n"
+                  "                if len(hash_collisions) < 100:\n"
+                  "                    hash_collisions.append({\"hash\": k, \"trace\": list(trace + (label,)), \"first_key\": state_records[k][\"full_key\"], \"other_key\": full_k})"
+              ),
+              (
+                  "            if k not in seen:\n"
+                  "                seen[k] = len(trace) + 1",
+                  "            if k not in seen:\n"
+                  "                seen[k] = len(trace) + 1\n"
+                  "                state_records[k] = {\"depth\": len(trace) + 1, \"full_key\": full_k, \"trace\": list(trace + (label,))}"
+              ),
+              (
+                  "    return {\n        \"world\": world_mode, \"depth\": depth, \"distinct_states\": len(seen),",
+                  "    return {\n"
+                  "        \"diagnostic_state_records\": [{\"depth\": v[\"depth\"], \"full_key\": v[\"full_key\"], \"trace\": v[\"trace\"]} for v in state_records.values()],\n"
+                  "        \"diagnostic_root_transitions\": root_transitions,\n"
+                  "        \"diagnostic_hash_collision_count\": len(hash_collisions),\n"
+                  "        \"diagnostic_hash_collisions_sample\": hash_collisions,\n"
+                  "        \"world\": world_mode, \"depth\": depth, \"distinct_states\": len(seen),"
+              ),
+          ]
+          for old, new in replacements:
+              count = src.count(old)
+              if count != 1:
+                  raise SystemExit(f"Instrumentation patch expected one match, found {count}: {old[:80]!r}")
+              src = src.replace(old, new)
+          Path("/tmp/e2_explore_keys.py").write_text(src, encoding="utf-8")
+          print("Instrumented identical explorer logic for diagnostic key/trace capture.")
+          PY
+      - name: Run depth-3 baseline and candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git worktree add --detach /tmp/e2-pre 84e46d94a6259ad1ec57757074a422d2f356ec49
+          PYTHONHASHSEED=0 PYTHONPATH=/tmp/e2-pre/src python /tmp/e2_explore_keys.py --world honest --depth 3 --out /tmp/e2-pre.json
+          PYTHONHASHSEED=0 PYTHONPATH="$GITHUB_WORKSPACE/src" python /tmp/e2_explore_keys.py --world honest --depth 3 --out /tmp/e2-candidate.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          pre = json.loads(Path("/tmp/e2-pre.json").read_text(encoding="utf-8"))
+          cand = json.loads(Path("/tmp/e2-candidate.json").read_text(encoding="utf-8"))
+          ATTEMPT_FIELDS = {"lei", "attempt_id", "state", "effect_observed", "receipt_observed",
+                            "qualified", "timeout_fired", "await_until_ms", "retry_eligible",
+                            "failure_reason", "nonce"}
+          PERMIT_FIELDS = {"lei", "attempt_id", "consumed", "issued_at_ms", "revoked"}
+
+          def normalize(key):
+              # Project added Attempt/Permit fields out to compare the shared pre-S8 state schema.
+              at = [[aid, [[name, value] for name, value in fields if name in ATTEMPT_FIELDS]]
+                    for aid, fields in key[0]]
+              pm = [[pid, [[name, value] for name, value in fields if name in PERMIT_FIELDS]]
+                    for pid, fields in key[1]]
+              return [at, pm, *key[2:]]
+
+          def ident(key):
+              return json.dumps(normalize(key), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+          def summary(key):
+              return {
+                  "attempts": key[0],
+                  "permits": key[1],
+                  "quarantine": key[2],
+                  "effects": key[3],
+                  "world_effects": key[4],
+                  "advances": key[5],
+                  "clock_ms": key[6],
+                  "evidence_registry": key[7],
+                  "quarantine_history_count": key[8],
+              }
+
+          pre_records = pre["diagnostic_state_records"]
+          cand_records = cand["diagnostic_state_records"]
+          print("COUNTS")
+          print(json.dumps({
+              "pre_s8": {"states": pre["distinct_states"], "transitions": pre["transitions_checked"],
+                         "states_by_depth": pre["new_states_by_depth"], "hash_collisions": pre["diagnostic_hash_collision_count"]},
+              "pr15_candidate": {"states": cand["distinct_states"], "transitions": cand["transitions_checked"],
+                                 "states_by_depth": cand["new_states_by_depth"], "hash_collisions": cand["diagnostic_hash_collision_count"]},
+          }, indent=2))
+          print("NORMALIZED KEY DIFFERENCES BY CUMULATIVE DEPTH")
+          diff_depth = None
+          pre_only_by_depth = {}
+          cand_only_by_depth = {}
+          for depth in range(4):
+              pre_set = {ident(r["full_key"]) for r in pre_records if r["depth"] <= depth}
+              cand_set = {ident(r["full_key"]) for r in cand_records if r["depth"] <= depth}
+              pre_only_by_depth[depth] = pre_set - cand_set
+              cand_only_by_depth[depth] = cand_set - pre_set
+              print(json.dumps({"depth": depth, "pre_states": sum(r["depth"] <= depth for r in pre_records),
+                                "candidate_states": sum(r["depth"] <= depth for r in cand_records),
+                                "pre_only_shared_schema": len(pre_only_by_depth[depth]),
+                                "candidate_only_shared_schema": len(cand_only_by_depth[depth])}))
+              if diff_depth is None and (pre_only_by_depth[depth] or cand_only_by_depth[depth]):
+                  diff_depth = depth
+
+          # Compare direct one-event successors to identify the earliest divergence.
+          pr = {x["label"]: x for x in pre["diagnostic_root_transitions"]}
+          cr = {x["label"]: x for x in cand["diagnostic_root_transitions"]}
+          root_diffs = []
+          for label in pr.keys() | cr.keys():
+              a, b = pr.get(label), cr.get(label)
+              if a is None or b is None or a["exception"] != b["exception"] or a["dispatch"] != b["dispatch"] or ident(a["full_key"]) != ident(b["full_key"]):
+                  root_diffs.append({"label": label, "pre_exception": a and a["exception"],
+                                     "candidate_exception": b and b["exception"],
+                                     "pre_dispatch": a and a["dispatch"], "candidate_dispatch": b and b["dispatch"],
+                                     "pre_key": a and summary(a["full_key"]),
+                                     "candidate_key": b and summary(b["full_key"])})
+          root_diffs.sort(key=lambda x: (x["label"] is None, x["label"] or ""))
+          print("ROOT TRANSITION DIFFERENCES (ordered by event label; see artifact for full keys)")
+          print(json.dumps(root_diffs[:12], indent=2))
+
+          if diff_depth is not None:
+              pre_cumulative = {ident(r["full_key"]) for r in pre_records if r["depth"] <= diff_depth}
+              cand_cumulative = {ident(r["full_key"]) for r in cand_records if r["depth"] <= diff_depth}
+              missing = next((r for r in pre_records if r["depth"] <= diff_depth
+                              and ident(r["full_key"]) not in cand_cumulative), None)
+              extra = next((r for r in cand_records if r["depth"] <= diff_depth
+                           and ident(r["full_key"]) not in pre_cumulative), None)
+              print("FIRST BASELINE STATE ABSENT FROM CANDIDATE AT EARLIEST DIVERGENT DEPTH")
+              print(json.dumps({"earliest_divergent_depth": diff_depth,
+                                "pre_s8_state": None if missing is None else {
+                                    "depth": missing["depth"], "trace": missing["trace"],
+                                    "full_key": summary(missing["full_key"])},
+                                "candidate_state": None if extra is None else {
+                                    "depth": extra["depth"], "trace": extra["trace"],
+                                    "full_key": summary(extra["full_key"])}}, indent=2))
+          else:
+              print("No normalized key-set divergence through depth 3.")
+
+          Path("/tmp/e2-key-diff.json").write_text(json.dumps({
+              "pre_s8": pre, "candidate": cand,
+              "comparison": {"depths_checked": [0, 1, 2, 3], "earliest_divergent_depth": diff_depth,
+                             "root_transition_differences": root_diffs},
+          }, indent=2), encoding="utf-8")
+          PY
+      - name: Upload raw state-key records and diff
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2-depth3-key-differential
+          path: |
+            /tmp/e2-pre.json
+            /tmp/e2-candidate.json
+            /tmp/e2-key-diff.json
+          if-no-files-found: error
