@@ -482,8 +482,10 @@ class Membrane:
                           principal=transition.principal,
                           declared_postconditions=list(transition.target_postconditions),
                           reason=refusal_reason)
+                public_reason = (refusal_reason if refusal_reason.startswith("REALM_INVARIANT_VIOLATED:")
+                                 else "TARGET_REALM_POLICY_REJECTED")
                 return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
-                    len(self.sink.effects), 0.0, refusal_reason, False,
+                    len(self.sink.effects), 0.0, public_reason, False,
                     events=[e["event"] for e in self.events])
         allowed_sources = transition.scope.get("source_realms")
         if allowed_sources is not None and transition.source_realm not in allowed_sources:
