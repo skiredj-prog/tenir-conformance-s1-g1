@@ -19,17 +19,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Scan all locally available Git blob objects for the manifest SHA-256
+      - name: Scan all advertised refs and available Git blob objects
         run: |
           set -euo pipefail
-          echo "HEAD=$(git rev-parse HEAD)"
-          echo "Fetch all advertised branches and tags before scanning:"
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
-          echo "Remote branch count: $(git branch -r | wc -l)"
-          echo "Current script SHA-256:"
+          echo "HEAD=$(git rev-parse HEAD)"
+          echo "Remote branches: $(git branch -r | wc -l)"
           sha256sum experiments/e1_e2/e2_explore.py
-          echo "Manifest-declared target:"
-          grep -n "e2_explore.py" experiments/e1_e2/MANIFEST.json
           python - <<'PY'
           import hashlib
           import json
@@ -37,81 +33,80 @@ jobs:
           import subprocess
           from pathlib import Path
 
-          targets = {
-              "d1488e806b4a784f7776f9ce0979b66034f7bf3076b9f7f19b19cf22cd64f6a0": "manifest_historical",
-              "e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a9d8": "known_current_control",
-          }
+          HISTORICAL = "d1488e806b4a784f7776f9ce0979b66034f7bf3076b9f7f19b19cf22cd64f6a0"
+          SCRIPT_PATH = "experiments/e1_e2/e2_explore.py"
+          head_digest = hashlib.sha256(Path(SCRIPT_PATH).read_bytes()).hexdigest()
 
-          listing = subprocess.run(
-              ["git", "cat-file", "--batch-all-objects",
-               "--batch-check=%(objectname) %(objecttype) %(objectsize)"],
-              check=True, capture_output=True, text=True,
-          ).stdout.splitlines()
+          def git(*args, check=True):
+              return subprocess.run(["git", *args], check=check, capture_output=True)
 
-          blob_oids = []
-          for line in listing:
-              fields = line.split()
-              if len(fields) == 3 and fields[1] == "blob":
-                  blob_oids.append(fields[0])
+          refs = git("for-each-ref", "--format=%(refname)", "refs/remotes/origin").stdout.decode().splitlines()
+          ref_versions = []
+          for ref in refs:
+              item = git("rev-parse", f"{ref}:{SCRIPT_PATH}", check=False)
+              if item.returncode:
+                  continue
+              oid = item.stdout.decode().strip()
+              body = git("cat-file", "blob", oid).stdout
+              digest = hashlib.sha256(body).hexdigest()
+              ref_versions.append({"ref": ref, "git_blob_oid": oid, "sha256": digest, "bytes": len(body)})
 
-          # Batch-fetch contents once to avoid spawning one process per object.
-          proc = subprocess.run(
-              ["git", "cat-file", "--batch"],
-              input="".join(oid + "\n" for oid in blob_oids).encode("ascii"),
-              check=True, capture_output=True,
-          )
-          data = proc.stdout
-          pos = 0
-          found = {key: [] for key in targets}
-          object_sizes = {}
-          for expected_oid in blob_oids:
-              end = data.find(b"\n", pos)
+          listing = git("cat-file", "--batch-all-objects",
+                        "--batch-check=%(objectname) %(objecttype) %(objectsize)").stdout.decode().splitlines()
+          blob_oids = [line.split()[0] for line in listing
+                       if len(line.split()) == 3 and line.split()[1] == "blob"]
+          payload = "".join(oid + "\\n" for oid in blob_oids).encode("ascii")
+          raw = git("cat-file", "--batch", input=payload).stdout
+
+          pos, found = 0, {}
+          for _ in blob_oids:
+              end = raw.find(b"\\n", pos)
               if end < 0:
-                  raise RuntimeError(f"Malformed cat-file header at byte {pos}")
-              header = data[pos:end].decode("ascii").split()
+                  raise RuntimeError(f"Malformed cat-file header at offset {pos}")
+              header = raw[pos:end].decode("ascii").split()
               if len(header) != 3:
                   raise RuntimeError(f"Malformed cat-file header: {header!r}")
               oid, obj_type, size_text = header
               size = int(size_text)
               start = end + 1
-              blob = data[start:start + size]
-              if len(blob) != size or data[start + size:start + size + 1] != b"\n":
-                  raise RuntimeError(f"Malformed blob payload for {oid}")
+              blob = raw[start:start + size]
+              if len(blob) != size or raw[start + size:start + size + 1] != b"\\n":
+                  raise RuntimeError(f"Malformed blob payload: {oid}")
               digest = hashlib.sha256(blob).hexdigest()
-              object_sizes[oid] = size
-              if digest in targets:
-                  found[digest].append({"git_blob_oid": oid, "size": size})
-                  if digest == "d1488e806b4a784f7776f9ce0979b66034f7bf3076b9f7f19b19cf22cd64f6a0":
-                      out = Path(os.environ["RUNNER_TEMP"]) / "e2_explore_d1488e80.py"
-                      out.write_bytes(blob)
-                      print(f"RECOVERED_REFERENCE={out}")
+              if digest in (HISTORICAL, head_digest):
+                  found.setdefault(digest, []).append({"git_blob_oid": oid, "size": size})
+                  if digest == HISTORICAL:
+                      (Path(os.environ["RUNNER_TEMP"]) / "e2_explore_d1488e80.py").write_bytes(blob)
               pos = start + size + 1
 
+          if head_digest not in found:
+              raise SystemExit("Scanner control failed: HEAD script blob absent from object scan")
+
+          history = []
+          for rows in found.values():
+              for row in rows:
+                  row["history"] = git("log", "--all", f"--find-object={row['git_blob_oid']}",
+                                       "--oneline").stdout.decode().splitlines()
+
           result = {
-              "head": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+              "head": git("rev-parse", "HEAD").stdout.decode().strip(),
+              "historical_sha256": HISTORICAL,
+              "head_script_sha256": head_digest,
               "git_object_records": len(listing),
               "blob_objects_scanned": len(blob_oids),
-              "targets": found,
-              "scope": "all Git objects available in this checkout after fetch-depth: 0 across advertised branches and tags; not server-side dangling objects omitted by Git fetch",
+              "script_versions_on_advertised_remote_refs": ref_versions,
+              "historical_sha256_match_in_git_objects": found.get(HISTORICAL, []),
+              "head_script_object_control": found.get(head_digest, []),
+              "scope": "all Git objects fetched from advertised branch and tag refs; unadvertised server-side dangling objects are not guaranteed to be transferred",
           }
           report = Path(os.environ["RUNNER_TEMP"]) / "e2-provenance-scan.json"
-          report.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+          report.write_text(json.dumps(result, indent=2) + "\\n", encoding="utf-8")
           print(json.dumps(result, indent=2))
-          for digest, rows in found.items():
-              for row in rows:
-                  oid = row["git_blob_oid"]
-                  print(f"GIT_BLOB_OID {digest} {oid}")
-                  history = subprocess.run(
-                      ["git", "log", "--all", f"--find-object={oid}", "--oneline"],
-                      check=True, capture_output=True, text=True,
-                  ).stdout
-                  print("GIT_LOG_FIND_OBJECT_BEGIN")
-                  print(history or "(no reachable commit names this object)")
-                  print("GIT_LOG_FIND_OBJECT_END")
-          if not found["e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a9d8"]:
-              raise SystemExit("Known current script digest not found: scanner control failed")
+          if found.get(HISTORICAL):
+              oid = found[HISTORICAL][0]["git_blob_oid"]
+              print("GIT_LOG_FIND_OBJECT:")
+              print(git("log", "--all", f"--find-object={oid}", "--oneline").stdout.decode())
           PY
-          git log --all --format='%H %s' -- experiments/e1_e2/e2_explore.py | head -40
       - name: Upload provenance report and recovered source if found
         if: always()
         uses: actions/upload-artifact@v4
