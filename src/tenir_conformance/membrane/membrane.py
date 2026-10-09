@@ -6,8 +6,10 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from .attestation import NonExecutionAttestation, load_trust_root, verify_attestation
 from .kernel_bridge import KernelBridge
 
 
@@ -108,9 +110,10 @@ class Evidence:
     source_authoritative: bool
     expires_at_ms: int | None = None
     required_properties: tuple[str, ...] = ()
-    # Explicit upstream-verifier attestation that no external effect occurred.
-    # The harness validates this assertion's presence/type; it does not verify signatures.
+    # Explicit claim that no external effect occurred. Negative state transitions
+    # additionally require a matching, cryptographically verified attestation.
     non_execution_confirmed: bool = False
+    attestation: NonExecutionAttestation | None = None
 
 
 @dataclass
@@ -152,12 +155,13 @@ class MembraneResult:
 
 
 class Membrane:
-    """RFC-4 membrane: permit, attempt, receipt, evidence, S3–S6 guards, T7/T8."""
+    """RFC-4 membrane with signed non-execution attestations for G0 S7."""
 
     def __init__(self, bridge: KernelBridge, sink: EffectSink | None = None,
                  clock: FakeClock | None = None, tau_k_ms: int = 5_000,
                  conflict_sensitive_properties: set[str] | frozenset[str] | None = None,
-                 quarantine_release_authorizer: Callable[[str, str], bool] | None = None) -> None:
+                 quarantine_release_authorizer: Callable[[str, str], bool] | None = None,
+                 trust_root: Mapping[str, Any] | str | Path | None = None) -> None:
         self.bridge = bridge
         self.sink = sink or EffectSink()
         self.clock = clock or FakeClock()
@@ -174,11 +178,95 @@ class Membrane:
         self.governance_quarantine: dict[str, dict[str, Any]] = {}
         self.governance_quarantine_history: list[dict[str, Any]] = []
         self._evidence_registry: dict[str, str] = {}
+        # Append-only record of all submitted S7 attestations, including rejects.
+        self.evidence_registry: list[dict[str, Any]] = []
+        self.trust_root = load_trust_root(trust_root)
         # Fail closed: quarantine release requires an injected authority check.
         self.quarantine_release_authorizer = quarantine_release_authorizer
 
     def _log(self, event: str, **fields: Any) -> None:
         self.events.append({"ts_ms": self.clock.now_ms, "event": event, **fields})
+
+    @staticmethod
+    def _attestation_decision(reason: str) -> str:
+        if reason.startswith("BINDING_"):
+            return reason
+        return "SIGNATURE_INVALID"
+
+    def _verify_and_record_attestation(
+        self, attempt: Attempt, attestation: NonExecutionAttestation | None
+    ) -> tuple[bool, str]:
+        verified, reason = verify_attestation(
+            attestation,
+            self.trust_root,
+            expected_attempt_id=attempt.attempt_id,
+            expected_lei=attempt.lei,
+            expected_nonce=attempt.nonce,
+        )
+        if isinstance(attestation, NonExecutionAttestation):
+            attestation_id = attestation.attestation_id or (
+                f"UNNAMED-{attempt.attempt_id}-{len(self.evidence_registry) + 1}"
+            )
+            submitted_payload = attestation.to_record()
+        else:
+            attestation_id = f"MISSING-{attempt.attempt_id}-{len(self.evidence_registry) + 1}"
+            submitted_payload = None
+        decision = self._attestation_decision(reason)
+        self.evidence_registry.append({
+            "attestation_id": attestation_id,
+            "status": "verified" if verified else "unverified",
+            "verification_reason": reason,
+            "verification_decision": decision,
+            "submitted_against": {
+                "attempt_id": attempt.attempt_id,
+                "lei": attempt.lei,
+                "nonce": attempt.nonce,
+            },
+            "payload_and_signature": submitted_payload,
+            "trust_root_id": self.trust_root["root_id"],
+            "trust_root_epoch": self.trust_root["root_epoch"],
+            "trust_root_snapshot": self.trust_root,
+            "received_at_ms": self.clock.now_ms,
+        })
+        if verified:
+            self._log(
+                "NON_EXECUTION_ATTESTATION_VERIFIED",
+                lei=attempt.lei,
+                attempt_id=attempt.attempt_id,
+                attestation_id=attestation_id,
+                key_id=attestation.key_id if attestation else None,
+                trust_root_id=self.trust_root["root_id"],
+                trust_root_epoch=self.trust_root["root_epoch"],
+                reason=reason,
+            )
+        else:
+            self._log(
+                "NON_EXECUTION_ATTESTATION_REJECTED",
+                lei=attempt.lei,
+                attempt_id=attempt.attempt_id,
+                attestation_id=attestation_id,
+                reason=reason,
+                decision=decision,
+            )
+        return verified, reason
+
+    def _reject_non_execution_attestation(
+        self, attempt: Attempt, reason: str
+    ) -> MembraneResult:
+        decision = self._attestation_decision(reason)
+        _, state = self._client_projection(attempt)
+        return MembraneResult(
+            Disposition.HOLD,
+            state,
+            attempt.receipt_observed,
+            len(self.sink.effects),
+            0.0,
+            decision,
+            False,
+            timeout_event=attempt.timeout_fired,
+            retry_eligible=False,
+            events=[event["event"] for event in self.events],
+        )
 
     def _blocks_new_attempt(self, attempt: Attempt) -> bool:
         # A confirmed execution permanently locks the same logical operation.
@@ -484,14 +572,19 @@ class Membrane:
             0.0, "NOT_EVALUATED", False, timeout_event=attempt.timeout_fired,
             events=[e["event"] for e in self.events])
 
-    def declare_failed(self, *, attempt_id: str, evidence_qualified: bool,
-                       retry_eligible: bool = True, reason: str = "QUALIFIED_NON_EXECUTION") -> MembraneResult:
-        """T7 adjudication seam; currently not wired to a production caller.
+    def declare_failed(
+        self,
+        *,
+        attempt_id: str,
+        evidence_qualified: bool | None = None,
+        attestation: NonExecutionAttestation | None = None,
+        retry_eligible: bool = True,
+        reason: str = "QUALIFIED_NON_EXECUTION",
+    ) -> MembraneResult:
+        """Transition to FAILED only after a signed, exactly bound attestation.
 
-        evidence_qualified is an upstream adjudicator's attestation, not a
-        cryptographic check performed by this in-memory conformance harness.
-        Integrations must call this only after validating authority and proof of
-        non-execution. An already observed effect always prevents FAILED.
+        evidence_qualified is retained for compatibility but never substitutes
+        for cryptographic verification. Submitted attestations are always audited.
         """
         if attempt_id not in self.attempts:
             raise KeyError(attempt_id)
@@ -510,34 +603,57 @@ class Membrane:
                     attempt.receipt_observed, len(self.sink.effects), 0.0, "NOT_EVALUATED", False,
                     timeout_event=attempt.timeout_fired, retry_eligible=attempt.retry_eligible,
                     events=[e["event"] for e in self.events])
-            self._log("T7_REJECTED_BAD_STATE", lei=attempt.lei, attempt_id=attempt_id, state=attempt.state.value)
+            self._log("T7_REJECTED_BAD_STATE", lei=attempt.lei, attempt_id=attempt_id,
+                      state=attempt.state.value)
             disp, st = self._client_projection(attempt)
             return MembraneResult(disp, st, attempt.receipt_observed, len(self.sink.effects),
                 0.0, "NOT_EVALUATED", False, events=[e["event"] for e in self.events])
-        if not evidence_qualified:
-            self._log("T7_REJECTED_UNQUALIFIED_EVIDENCE", lei=attempt.lei, attempt_id=attempt_id, reason=reason)
+
+        if attestation is None and evidence_qualified is False:
+            self._log("T7_REJECTED_UNQUALIFIED_EVIDENCE", lei=attempt.lei,
+                      attempt_id=attempt_id, reason=reason)
             disp, st = self._client_projection(attempt)
             return MembraneResult(disp, st, attempt.receipt_observed, len(self.sink.effects),
-                0.0, "NOT_EVALUATED", False, timeout_event=attempt.timeout_fired, retry_eligible=False,
-                events=[e["event"] for e in self.events])
-        if attempt.effect_observed:
+                0.0, "NOT_EVALUATED", False, timeout_event=attempt.timeout_fired,
+                retry_eligible=False, events=[e["event"] for e in self.events])
+
+        # Keep the legacy observed-effect diagnostic if no attestation was
+        # supplied. A submitted attestation is verified and retained first.
+        if attestation is None and attempt.effect_observed:
             self._log("T7_REJECTED_EFFECT_ALREADY_OBSERVED", lei=attempt.lei,
                       attempt_id=attempt_id, reason=reason)
             disp, st = self._client_projection(attempt)
             return MembraneResult(disp, st, attempt.receipt_observed, len(self.sink.effects),
                 0.0, "NOT_EVALUATED", False, timeout_event=attempt.timeout_fired,
                 retry_eligible=False, events=[e["event"] for e in self.events])
+
+        verified, verification_reason = self._verify_and_record_attestation(attempt, attestation)
+        if not verified:
+            return self._reject_non_execution_attestation(attempt, verification_reason)
+        if attempt.effect_observed:
+            self._log("T7_REJECTED_EFFECT_ALREADY_OBSERVED", lei=attempt.lei,
+                      attempt_id=attempt_id, reason=reason,
+                      attestation_id=attestation.attestation_id if attestation else None)
+            disp, st = self._client_projection(attempt)
+            return MembraneResult(disp, st, attempt.receipt_observed, len(self.sink.effects),
+                0.0, "NOT_EVALUATED", False, timeout_event=attempt.timeout_fired,
+                retry_eligible=False, events=[e["event"] for e in self.events])
+
         attempt.state = AttemptState.FAILED
         attempt.non_execution_confirmed = True
         attempt.qualified = True
         attempt.retry_eligible = retry_eligible
         attempt.failure_reason = reason
-        self._log("T7_DECLARE_FAILED", lei=attempt.lei, attempt_id=attempt_id, reason=reason,
-                  retry_eligible=retry_eligible)
+        self._log("T7_DECLARE_FAILED", lei=attempt.lei, attempt_id=attempt_id,
+                  attestation_id=attestation.attestation_id if attestation else None,
+                  reason=reason, retry_eligible=retry_eligible, non_execution_confirmed=True)
+        self._log("LEI_UNLOCKED_BY_VERIFIED_NON_EXECUTION", lei=attempt.lei,
+                  attempt_id=attempt_id,
+                  attestation_id=attestation.attestation_id if attestation else None)
         return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value, attempt.receipt_observed,
-            len(self.sink.effects), 0.0, "NOT_EVALUATED", False, timeout_event=attempt.timeout_fired,
-            retry_eligible=retry_eligible, events=[e["event"] for e in self.events])
-
+            len(self.sink.effects), 0.0, "T7_DECLARE_FAILED_VERIFIED", False,
+            timeout_event=attempt.timeout_fired, retry_eligible=retry_eligible,
+            events=[e["event"] for e in self.events])
 
     @staticmethod
     def _evidence_fingerprint(evidence: Evidence) -> str:
@@ -556,6 +672,7 @@ class Membrane:
             "expires_at_ms": evidence.expires_at_ms,
             "required_properties": list(evidence.required_properties),
             "non_execution_confirmed": evidence.non_execution_confirmed,
+            "attestation": evidence.attestation.to_record() if evidence.attestation else None,
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()
@@ -776,11 +893,30 @@ class Membrane:
             raise KeyError(attempt_id)
         attempt = self.attempts[attempt_id]
         batch = self._validate_evidence_batch(attempt, evidence_batch)
+        statuses = {evidence.status.strip().upper() for evidence in batch}
+
+        # Authenticate every negative outcome before it may participate in a
+        # conflict or state transition; unsigned claims cannot trigger escalation.
+        negative_items = [
+            item for item in batch
+            if item.status.strip().upper() in {"FAILED", "REJECTED"}
+        ]
+        for item in negative_items:
+            verified, verification_reason = self._verify_and_record_attestation(
+                attempt, item.attestation
+            )
+            if not verified:
+                return self._reject_non_execution_attestation(attempt, verification_reason)
+            if item.non_execution_confirmed is not True:
+                self._log("EVIDENCE_ATTESTATION_MISMATCH", lei=attempt.lei,
+                          attempt_id=attempt.attempt_id, evidence_id=item.evidence_id,
+                          attestation_id=item.attestation.attestation_id if item.attestation else None)
+                return self._reject_non_execution_attestation(attempt, "attestation_evidence_mismatch")
+
         conflicts = self._detect_evidence_conflicts(batch)
         if conflicts:
             return self._record_evidence_contradiction(attempt, conflicts)
 
-        statuses = {evidence.status.strip().upper() for evidence in batch}
         self._log("EVIDENCE_BATCH_NONCONTRADICTORY", lei=attempt.lei,
                   attempt_id=attempt.attempt_id,
                   evidence_ids=sorted(evidence.evidence_id for evidence in batch))
@@ -889,16 +1025,30 @@ class Membrane:
                 timeout_event=attempt.timeout_fired, retry_eligible=attempt.retry_eligible,
                 events=[event["event"] for event in self.events])
 
-        if outcome == "FAILED" and item.non_execution_confirmed is not True:
-            self._log("RECONCILIATION_REJECTED_NO_NON_EXECUTION_PROOF",
-                      lei=attempt.lei, attempt_id=attempt_id,
-                      evidence_id=item.evidence_id)
-            disp, state = self._client_projection(attempt)
-            return MembraneResult(disp, state, attempt.receipt_observed,
-                len(self.sink.effects), 0.0,
-                "RECONCILIATION_NO_NON_EXECUTION_PROOF", False,
-                timeout_event=attempt.timeout_fired, retry_eligible=False,
-                events=[event["event"] for event in self.events])
+        if outcome == "FAILED":
+            # Preserve the no-proof result when no claim was submitted. When a
+            # claim exists, verify and audit it even if the verification fails.
+            if item.non_execution_confirmed is not True and item.attestation is None:
+                self._log("RECONCILIATION_REJECTED_NO_NON_EXECUTION_PROOF",
+                          lei=attempt.lei, attempt_id=attempt_id,
+                          evidence_id=item.evidence_id)
+                disp, state = self._client_projection(attempt)
+                return MembraneResult(disp, state, attempt.receipt_observed,
+                    len(self.sink.effects), 0.0,
+                    "RECONCILIATION_NO_NON_EXECUTION_PROOF", False,
+                    timeout_event=attempt.timeout_fired, retry_eligible=False,
+                    events=[event["event"] for event in self.events])
+
+            verified, verification_reason = self._verify_and_record_attestation(
+                attempt, item.attestation
+            )
+            if not verified:
+                return self._reject_non_execution_attestation(attempt, verification_reason)
+            if item.non_execution_confirmed is not True:
+                self._log("RECONCILIATION_ATTESTATION_MISMATCH", lei=attempt.lei,
+                          attempt_id=attempt_id, evidence_id=item.evidence_id,
+                          attestation_id=item.attestation.attestation_id if item.attestation else None)
+                return self._reject_non_execution_attestation(attempt, "attestation_evidence_mismatch")
 
         # Do not overwrite terminal outcomes. Matching evidence is idempotent;
         # an opposite outcome fails closed without mutating terminal state.

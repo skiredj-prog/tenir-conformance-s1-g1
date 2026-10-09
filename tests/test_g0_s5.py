@@ -20,6 +20,7 @@ from tenir_conformance.membrane import (
     Receipt,
 )
 from tenir_conformance.membrane.kernel_bridge import KernelBridge
+from s7_helpers import sign_attestation
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "scenarios" / "G0_S5_CONTRADICTORY_EVIDENCE.md"
@@ -58,6 +59,17 @@ def _evidence(
     expires_at_ms: int = NOW + 60_000,
     required_properties: tuple[str, ...] = (),
 ) -> Evidence:
+    is_negative = status.strip().upper() in {"FAILED", "REJECTED"}
+    attestation = (
+        sign_attestation(
+            attestation_id=f"AT-{evidence_id}",
+            attempt_id=attempt_id,
+            lei=lei,
+            nonce=nonce,
+            non_execution_confirmed=True,
+        )
+        if is_negative else None
+    )
     return Evidence(
         evidence_id=evidence_id,
         attempt_id=attempt_id,
@@ -72,6 +84,8 @@ def _evidence(
         source_authoritative=source_authoritative,
         expires_at_ms=expires_at_ms,
         required_properties=required_properties,
+        non_execution_confirmed=is_negative,
+        attestation=attestation,
     )
 
 

@@ -1,0 +1,54 @@
+{
+  "id": "G0_S7",
+  "title": "Forged Non-Execution Attestation",
+  "api_target": [
+    "declare_failed",
+    "reconcile"
+  ],
+  "assertions": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6"
+  ],
+  "claim_scope": "tested sequential interleavings only",
+  "trust_root": "src/tenir_conformance/membrane/trust_root.yaml",
+  "subcases": {
+    "S7a": {
+      "description": "Unsigned attestation",
+      "expected": "SIGNATURE_INVALID; reason=missing_signature; A1 UNKNOWN; LEI locked; A2 blocked; evidence unverified"
+    },
+    "S7b": {
+      "description": "Unknown key K9",
+      "expected": "SIGNATURE_INVALID; reason=unknown_key; A1 UNKNOWN; LEI locked; A2 blocked; evidence unverified"
+    },
+    "S7c": {
+      "description": "K1 revoked at trust-root epoch 2",
+      "expected": "SIGNATURE_INVALID; reason=revoked_key; A1 UNKNOWN; LEI locked; A2 blocked; evidence unverified"
+    },
+    "S7d": {
+      "description": "Signed payload tampered after signing",
+      "expected": "SIGNATURE_INVALID; reason=content_mismatch; A1 UNKNOWN; LEI locked; A2 blocked; evidence unverified"
+    },
+    "S7e": {
+      "description": "Valid signed and bound K1 control",
+      "expected": "PASS; A1 FAILED; lock released; A2 admitted; evidence verified"
+    },
+    "S7f": {
+      "description": "Valid attestation replayed across LEIs",
+      "expected": "HOLD; reason=BINDING_LEI_MISMATCH; A1 UNKNOWN; LEI locked; A2 blocked; evidence unverified"
+    }
+  },
+  "evidence": {
+    "transition_log": "JSONL per subcase",
+    "signature": "Ed25519 hex",
+    "trust_root_snapshot": true,
+    "verification_trace": true,
+    "attempt_state_before_after": true,
+    "permit_registry_before_after": true,
+    "evidence_registry_before_after": true,
+    "scenario_sha256": true
+  }
+}
