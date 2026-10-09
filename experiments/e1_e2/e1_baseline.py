@@ -96,7 +96,7 @@ def run_membrane(seq, reconcile):
                 lei="L", attempt_id=aid, payload=OK, apply_effect=bool(EFFECT[f]), nonce=nonce)
         if len(m.attempts) == n_attempts:               # admission refused by the membrane guard
             blocked += 1
-            break                                        # naive client keeps getting HOLD; stops retrying
+            continue                                     # uniform client policy: retry HOLD up to MAX_ATTEMPTS
         if f == "F0":
             r = m.deliver_qualifying_receipt(Receipt(attempt_id=aid, lei="L", nonce=nonce))
             confirmed = r.client_state == AttemptState.RESOLVED.value
