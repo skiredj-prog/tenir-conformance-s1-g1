@@ -334,6 +334,26 @@ class Membrane:
                   nonce=attempt.nonce)
         return permit
 
+    def _consume_permit(self, attempt: Attempt) -> Permit:
+        """Atomically consume a permit once within this process."""
+        with self._admission_lock:
+            permit = self.permits.get(attempt.attempt_id)
+            if permit is None or permit.lei != attempt.lei:
+                self._log("PERMIT_CONSUMPTION_REJECTED", lei=attempt.lei,
+                          attempt_id=attempt.attempt_id, reason="PERMIT_NOT_FOUND")
+                raise ValueError("PERMIT_NOT_FOUND")
+            if permit.revoked:
+                self._log("PERMIT_CONSUMPTION_REJECTED", lei=attempt.lei,
+                          attempt_id=attempt.attempt_id, reason="PERMIT_REVOKED")
+                raise ValueError("PERMIT_REVOKED")
+            if permit.consumed:
+                self._log("PERMIT_CONSUMPTION_REJECTED", lei=attempt.lei,
+                          attempt_id=attempt.attempt_id, reason="PERMIT_ALREADY_CONSUMED")
+                raise ValueError("PERMIT_ALREADY_CONSUMED")
+            permit.consumed = True
+            self._log("PERMIT_CONSUMED", lei=attempt.lei, attempt_id=attempt.attempt_id)
+            return permit
+
     def process_transaction(self, *, lei: str, attempt_id: str, payload: Mapping[str, Any],
                             nonce: str = "", request_lost: bool = False,
                             receipt_lost: bool = False,
@@ -368,8 +388,7 @@ class Membrane:
                 len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
                 events=[e["event"] for e in self.events])
         self._issue_permit(attempt)
-        self.permits[attempt_id].consumed = True
-        self._log("PERMIT_CONSUMED", lei=lei, attempt_id=attempt_id)
+        self._consume_permit(attempt)
         if request_lost:
             attempt.state = AttemptState.UNKNOWN
             self._log("T3_ReceiptLost", lei=lei, attempt_id=attempt_id, kind="REQUEST_LOST")
@@ -453,8 +472,7 @@ class Membrane:
                 len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
                 events=[e["event"] for e in self.events])
         self._issue_permit(attempt)
-        self.permits[attempt_id].consumed = True
-        self._log("PERMIT_CONSUMED", lei=lei, attempt_id=attempt_id)
+        self._consume_permit(attempt)
         if apply_effect:
             self.sink.apply(lei, attempt_id, payload)
             attempt.effect_observed = True
