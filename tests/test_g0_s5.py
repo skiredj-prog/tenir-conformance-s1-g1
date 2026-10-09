@@ -307,7 +307,7 @@ def test_s5_quarantine_release_does_not_override_resolved_effect_lock():
     permits_before = len(m.permits)
     effects_before = len(m.sink.effects)
 
-    result = m.process_transaction(lei="L", attempt_id="A2", payload=PAYLOAD)
+    result = m.process_transaction(nonce="n-s5-process_transaction-01", lei="L", attempt_id="A2", payload=PAYLOAD)
 
     assert result.disposition.value == "HOLD"
     assert len(m.permits) == permits_before
@@ -335,7 +335,7 @@ def test_s5_quarantine_release_does_not_override_resolved_effect_lock():
     assert any(e["event"] == "GOVERNANCE_QUARANTINE_RELEASED" for e in m.events)
 
     # Releasing incident quarantine does not erase proof of an already resolved effect.
-    resumed = m.process_transaction(lei="L", attempt_id="A2", payload=PAYLOAD)
+    resumed = m.process_transaction(nonce="n-s5-process_transaction-02", lei="L", attempt_id="A2", payload=PAYLOAD)
     assert resumed.disposition.value == "HOLD"
     assert resumed.kernel_decision == "NOT_EVALUATED"
     assert "A2" not in m.attempts
