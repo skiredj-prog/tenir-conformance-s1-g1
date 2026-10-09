@@ -80,5 +80,5 @@ def test_json_invariant_predicate_can_refuse_without_exposure_cap_change():
         "left": {"var": "exposure"}, "right": {"const": 0.25}},
     }], max_exposure=1.0)
     verdict, reason = _run(document)
-    assert verdict == Disposition.HOLD
+    assert verdict == Disposition.HARD_VETO
     assert reason == "REALM_INVARIANT_VIOLATED:PRESERVE_LOW_EXPOSURE"
