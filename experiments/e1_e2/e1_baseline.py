@@ -54,23 +54,39 @@ EFFECT = {"F0": 1, "F1": 0, "F2": 1, "F3": 0, "F4": 0}
 # ----------------------------------------------------------------- baselines
 def run_b1(seq):
     effects, confirmed = 0, False
+    nonexecution_confirmed, prior_unresolved = False, False
     for f in seq:
         assert BRIDGE.evaluate(OK).admissible
         effects += EFFECT[f]
+        if f in NO_RESPONSE:
+            prior_unresolved = True
         if f == "F0":
             confirmed = True
-    return dict(effects=effects, confirmed=confirmed, blocked=0)
+            nonexecution_confirmed = False
+        elif f == "F4":
+            # A rejection settles the logical operation only if no earlier
+            # no-response attempt remains epistemically unresolved.
+            nonexecution_confirmed = not prior_unresolved
+    return dict(effects=effects, confirmed=confirmed,
+                nonexecution_confirmed=nonexecution_confirmed, blocked=0)
 
 
 def run_b2(seq):
     effects, confirmed, applied = 0, False, False
+    nonexecution_confirmed, prior_unresolved = False, False
     for f in seq:
         assert BRIDGE.evaluate(OK).admissible
         if EFFECT[f] and not applied:
             applied = True; effects += 1          # same key => target dedups later effects
+        if f in NO_RESPONSE:
+            prior_unresolved = True
         if f == "F0":
             confirmed = True
-    return dict(effects=effects, confirmed=confirmed, blocked=0)
+            nonexecution_confirmed = False
+        elif f == "F4":
+            nonexecution_confirmed = not prior_unresolved
+    return dict(effects=effects, confirmed=confirmed,
+                nonexecution_confirmed=nonexecution_confirmed, blocked=0)
 
 
 # ----------------------------------------------------------------- membrane
@@ -86,6 +102,7 @@ def run_membrane(seq, reconcile):
     clock = FakeClock(now_ms=T0)
     m = Membrane(BRIDGE, clock=clock, tau_k_ms=TAU)
     confirmed, blocked = False, 0
+    nonexecution_confirmed, prior_unresolved = False, False
     for i, f in enumerate(seq):
         aid, nonce = f"A{i+1}", f"n{i+1}"
         n_attempts = len(m.attempts)
@@ -100,8 +117,12 @@ def run_membrane(seq, reconcile):
         if f == "F0":
             r = m.deliver_qualifying_receipt(Receipt(attempt_id=aid, lei="L", nonce=nonce))
             confirmed = r.client_state == AttemptState.RESOLVED.value
+            nonexecution_confirmed = False
             break
         if f == "F4":
+            # An observed rejection only establishes operation-level
+            # non-execution if all preceding attempts were already settled.
+            nonexecution_confirmed = not prior_unresolved
             break
         # no-response outcome: the qualification window elapses
         clock.advance_to(clock.now_ms + TAU)
@@ -112,10 +133,20 @@ def run_membrane(seq, reconcile):
                                                      nonexec=not truth_effect))
             if m.attempts[aid].state == AttemptState.RESOLVED:
                 confirmed = True
+                nonexecution_confirmed = False
                 break
+            if m.attempts[aid].state == AttemptState.FAILED:
+                # Qualified reconciliation has established non-execution for
+                # this attempt and all earlier attempts admitted by the guard.
+                nonexecution_confirmed = True
+                prior_unresolved = False
+        else:
+            prior_unresolved = True
+            nonexecution_confirmed = False
         # client retries with a fresh attempt id on the next loop iteration
-    # a blocked retry in the membrane is a HOLD, so count attempts the membrane never let through
-    return dict(effects=len(m.sink.effects), confirmed=confirmed, blocked=blocked)
+    # Record both per-attempt blocks and sequences containing any block.
+    return dict(effects=len(m.sink.effects), confirmed=confirmed,
+                nonexecution_confirmed=nonexecution_confirmed, blocked=blocked)
 
 
 def summarize(name, fn):
@@ -125,15 +156,45 @@ def summarize(name, fn):
         c["dup" if r["effects"] >= 2 else ("once" if r["effects"] == 1 else "zero")] += 1
         c["client_confirmed"] += r["confirmed"]
         c["blocked_seq"] += r["blocked"] > 0
+
+    # The sequence-level denominator is defined from the fault trace, not
+    # from a system's output: 15 no-effect traces and 38 effect-expected traces.
+    no_effect_expected = sum(all(f in {"F1", "F3", "F4"} for f in seq) for seq in SEQS)
+    effect_expected = sum(any(EFFECT[f] for f in seq) for seq in SEQS)
+    correct_no_effect = sum(
+        1 for seq, r in zip(SEQS, res)
+        if all(f in {"F1", "F3", "F4"} for f in seq)
+        and r["effects"] == 0 and r["nonexecution_confirmed"]
+    )
+    correct_single_effect = sum(
+        1 for seq, r in zip(SEQS, res)
+        if any(EFFECT[f] for f in seq)
+        and r["effects"] == 1 and r["confirmed"]
+    )
     once_unconfirmed = sum(1 for r in res if r["effects"] == 1 and not r["confirmed"])
-    return {"system": name, "sequences": len(res), "duplicate_effects": c["dup"],
-            "exactly_one_effect": c["once"], "zero_effects": c["zero"],
-            "client_confirmed_success": c["client_confirmed"],
-            "exactly_one_effect_but_client_unaware": once_unconfirmed,
-            "sequences_where_membrane_blocked_a_retry": c["blocked_seq"]}
+    return {
+        "system": name,
+        "sequences": len(res),
+        "duplicate_effects": c["dup"],
+        "exactly_one_effect": c["once"],
+        "zero_effects": c["zero"],
+        "client_confirmed_success": c["client_confirmed"],
+        "exactly_one_effect_but_client_unaware": once_unconfirmed,
+        "correct_no_effect_sequences": correct_no_effect,
+        "no_effect_expected_sequences": no_effect_expected,
+        "correct_no_effect_rate_percent": round(100 * correct_no_effect / no_effect_expected, 2),
+        "correct_single_effect_sequences": correct_single_effect,
+        "effect_expected_sequences": effect_expected,
+        "correct_single_effect_rate_percent": round(100 * correct_single_effect / effect_expected, 2),
+        "blocked_retry_attempts": sum(r["blocked"] for r in res),
+        "sequences_with_at_least_one_block": c["blocked_seq"],
+    }
 
 
 SEQS = sequences()
+assert len(SEQS) == 53, f"Expected 53 fault sequences, got {len(SEQS)}"
+assert sum(all(f in {"F1", "F3", "F4"} for f in seq) for seq in SEQS) == 15
+assert sum(any(EFFECT[f] for f in seq) for seq in SEQS) == 38
 
 if __name__ == "__main__":
     out = [summarize("B1 stateless PEP/PDP", run_b1),
