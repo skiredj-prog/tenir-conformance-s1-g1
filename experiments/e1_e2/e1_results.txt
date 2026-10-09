@@ -7,7 +7,14 @@
     "zero_effects": 15,
     "client_confirmed_success": 13,
     "exactly_one_effect_but_client_unaware": 17,
-    "sequences_where_membrane_blocked_a_retry": 0
+    "correct_no_effect_sequences": 1,
+    "no_effect_expected_sequences": 15,
+    "correct_no_effect_rate_percent": 6.67,
+    "correct_single_effect_sequences": 7,
+    "effect_expected_sequences": 38,
+    "correct_single_effect_rate_percent": 18.42,
+    "blocked_retry_attempts": 0,
+    "sequences_with_at_least_one_block": 0
   },
   {
     "system": "B2 PEP/PDP + idempotency key (reused)",
@@ -17,7 +24,14 @@
     "zero_effects": 15,
     "client_confirmed_success": 13,
     "exactly_one_effect_but_client_unaware": 25,
-    "sequences_where_membrane_blocked_a_retry": 0
+    "correct_no_effect_sequences": 1,
+    "no_effect_expected_sequences": 15,
+    "correct_no_effect_rate_percent": 6.67,
+    "correct_single_effect_sequences": 13,
+    "effect_expected_sequences": 38,
+    "correct_single_effect_rate_percent": 34.21,
+    "blocked_retry_attempts": 0,
+    "sequences_with_at_least_one_block": 0
   },
   {
     "system": "M0 membrane, no reconciliation",
@@ -27,7 +41,14 @@
     "zero_effects": 35,
     "client_confirmed_success": 1,
     "exactly_one_effect_but_client_unaware": 17,
-    "sequences_where_membrane_blocked_a_retry": 51
+    "correct_no_effect_sequences": 1,
+    "no_effect_expected_sequences": 15,
+    "correct_no_effect_rate_percent": 6.67,
+    "correct_single_effect_sequences": 1,
+    "effect_expected_sequences": 38,
+    "correct_single_effect_rate_percent": 2.63,
+    "blocked_retry_attempts": 96,
+    "sequences_with_at_least_one_block": 51
   },
   {
     "system": "M1 membrane + evidence-bound reconciliation",
@@ -37,7 +58,14 @@
     "zero_effects": 15,
     "client_confirmed_success": 38,
     "exactly_one_effect_but_client_unaware": 0,
-    "sequences_where_membrane_blocked_a_retry": 0
+    "correct_no_effect_sequences": 15,
+    "no_effect_expected_sequences": 15,
+    "correct_no_effect_rate_percent": 100.0,
+    "correct_single_effect_sequences": 38,
+    "effect_expected_sequences": 38,
+    "correct_single_effect_rate_percent": 100.0,
+    "blocked_retry_attempts": 0,
+    "sequences_with_at_least_one_block": 0
   }
 ]
 B1 duplicate sequences: 14 [['F1', 'F2', 'F0'], ['F1', 'F2', 'F2'], ['F2', 'F0'], ['F2', 'F1', 'F0'], ['F2', 'F1', 'F2'], ['F2', 'F2', 'F0']]
