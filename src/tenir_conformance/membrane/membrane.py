@@ -873,14 +873,14 @@ class Membrane:
                     len(self.sink.effects), 0.0, "RECONCILIATION_IDEMPOTENT_ACK", False,
                     timeout_event=attempt.timeout_fired, retry_eligible=attempt.retry_eligible,
                     events=[event["event"] for event in self.events])
-            self._log("RECONCILIATION_TERMINAL_CONFLICT", lei=attempt.lei,
-                      attempt_id=attempt_id, evidence_id=item.evidence_id,
-                      outcome=outcome, state=attempt.state.value)
-            return MembraneResult(Disposition.HOLD, attempt.state.value,
-                attempt.receipt_observed, len(self.sink.effects), 0.0,
-                "RECONCILIATION_TERMINAL_CONFLICT", False,
-                timeout_event=attempt.timeout_fired, retry_eligible=False,
-                events=[event["event"] for event in self.events])
+            # Route contradictions against an already terminal outcome through S5;
+            # preserve the terminal state and fail closed under governance quarantine.
+            return self._record_evidence_contradiction(attempt, [{
+                "kind": "TerminalOutcomeConflict",
+                "evidence_ids": [item.evidence_id],
+                "left_status": attempt.state.value,
+                "right_status": outcome,
+            }])
 
         if attempt.state != AttemptState.UNKNOWN:
             self._log("RECONCILIATION_REJECTED_BAD_STATE", lei=attempt.lei,
