@@ -3,7 +3,7 @@
 **Historical S1–S6 validated source commit:** `07b5f315bbbaab7649e6ae9049445913de141f25`.
 **PR #4 merge commit:** `84e46d94a6259ad1ec57757074a422d2f356ec49`.
 **PR #15 merge commit:** `26b9466ec666de18e5acaac4ce1fac0135cadd9e` — signed Realm invariant admission + ND-1.
-**PR #15 CI:** [Run #149](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962187532) — **PASS** on tested head `311bc3ae7ecf4dd241d6cea80fe98fad1a7d0922`; post-merge main run [#150](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962357582) is in progress.
+**PR #15 CI:** [Run #149](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962187532) — **PASS** on tested head `311bc3ae7ecf4dd241d6cea80fe98fad1a7d0922`; post-merge main run [#150](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962357582) — **PASS**.
 **Manifest:** [MANIFEST.json](./MANIFEST.json).
 **Manifest:** [MANIFEST.json](./MANIFEST.json).
 
