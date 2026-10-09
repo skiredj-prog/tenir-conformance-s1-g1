@@ -1,0 +1,22 @@
+schema: tenir.tau-contract.v1
+tau_id: TAU-DEFAULT-TEST
+version: 1.0.0
+signed_by: TENIR-CONFORMANCE-TEST-ROOT
+scope:
+  lei: ["*"]
+  action_classes: ["*"]
+  principals: ["*"]
+invariant:
+  text: "Only transitions inside the declared TAU scope may reach the kernel."
+  formal: "lei∈S_LEI ∧ action_class∈S_ACTION ∧ principal∈S_PRINCIPAL"
+evidence_requirements:
+  FAILED:
+    - authoritative outcome evidence
+    - integrity verified
+    - bound to attempt and nonce
+exhaustion_policy: fail_closed
+manifest_sha256: 6114d4320b18ce9e9d177a437480cb7dd92ad944684f66ee2590fb6e1e38514a
+signature:
+  algorithm: Ed25519
+  key_id: TENIR-CONFORMANCE-TEST-ROOT
+  signature_hex: 7f1e5af6fc135df236816852b481e32e29f8e7dfc529e4c2c83f22812cd2be883bb036f0146b9d42d250e03f848782eda210f63da944acace35d1f2b316dc505
