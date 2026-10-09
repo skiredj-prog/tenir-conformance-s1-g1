@@ -21,6 +21,8 @@ Sub-cases:
 
 **Critical couple:** `State = UNKNOWN` **and** `ExecutionWindow = CLOSED` is never an implicit permission to proceed.
 
+**Boundary with S6:** S4 tests receipt delivery and must reject a receipt after the execution window closes. S6 uses a separate `reconcile` observation API to inspect qualified evidence about an already-past outcome. Reconciliation must not call `deliver_qualifying_receipt`, reopen the S4 window, issue a permit, or cause an effect. The two paths are tested and reported as distinct scenarios.
+
 ### Vocabulary mapping (spec → membrane)
 
 | Spec term | Membrane primitive |
