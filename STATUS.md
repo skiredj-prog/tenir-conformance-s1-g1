@@ -1,8 +1,10 @@
 # Scientific status of this package
 
-**Validated source commit:** `07b5f315bbbaab7649e6ae9049445913de141f25` (head of latest successful post-merge run).
+**Historical S1–S6 validated source commit:** `07b5f315bbbaab7649e6ae9049445913de141f25`.
 **PR #4 merge commit:** `84e46d94a6259ad1ec57757074a422d2f356ec49`.
-**Latest post-merge CI:** [Run #58 — Membrane CI (S1–S6 + T7/T8)](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37865306599) — **PASS**, including S1–S6 and T7/T8 test steps and all six evidence uploads.
+**PR #15 merge commit:** `26b9466ec666de18e5acaac4ce1fac0135cadd9e` — signed Realm invariant admission + ND-1.
+**PR #15 CI:** [Run #149](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962187532) — **PASS** on tested head `311bc3ae7ecf4dd241d6cea80fe98fad1a7d0922`; post-merge main run [#150](https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962357582) is in progress.
+**Manifest:** [MANIFEST.json](./MANIFEST.json).
 **Manifest:** [MANIFEST.json](./MANIFEST.json).
 
 ## What this package establishes
@@ -42,3 +44,10 @@ The CI result validates only the **tested sequential interleavings**. It is not 
 - Keep this status and `MANIFEST.json` synchronized with future validation runs.
 
 Phase 1 is complete at the lab-validation level. Do not infer production readiness or start multi-agent Phase 2 from this result.
+
+
+## Cross-realm admission status (S12)
+
+- **ND-1: PASS** — two tests establish that the same target Realm ID and same transition/payload can yield divergent admission verdicts under different signed Realm policies. CI run #149 passed all S1–S11/T7/T8 tests, ND-1, and the bounded E2 exploration in all four worlds with invariant checks.
+- **E2 historical v1:** classified as unrecoverable historical evidence. The pre-PR#6 explorer and membrane pair were not committed; the 36,892 figure is not a reproducible CI oracle. CI no longer gates on that count.
+- **S12a–S12h:** not yet validated. ND-1 alone does not establish the complete cross-realm property. Next tests must cover permissive target PASS, invariant violation HARD_VETO, invalid target authority HARD_VETO, failed postcondition HOLD, explicit non-implication recording, ND-2 label/content independence, and altered Realm document rejection before evaluation.
