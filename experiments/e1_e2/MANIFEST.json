@@ -3,11 +3,11 @@
   "manuscript_version": "v6.7",
   "membrane_commit": "3ef1d45e2c393ef2490a90760a75247f8aca5ee2",
   "scripts": {
-    "e1_baseline.py": "sha256:2ee4f1eb10d219b8d2256c666d36c4888bee02c6869379a490db0435f6e036ee",
+    "e1_baseline.py": "sha256:f611577976a50aa07fb8f2e850a655810ee581bfe5a03ce1787f5fbc378233e1",
     "e2_explore.py": "sha256:e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9"
   },
   "results": {
-    "e1_results.txt": "sha256:feafa1bad5843b0e64606eddf10dbae9c1724afc828af80b1f3424657a25df92",
+    "e1_results.txt": "sha256:751281e250b3ca7444bb8deab78f9eb31313d117f03c53baeccbd0ba3ed633cb",
     "r6_adversarial.json": "sha256:8c5dd9f51f99a79075256e506ccdc22066dac060ce55187dad60396a8a8b6091",
     "r6_false_attest.json": "sha256:eeef43fbed602cd63a8f49fb492744a4a527c80b2ed192da87435678581d931c",
     "r8_honest.json": "sha256:831a7b13401b93b4622b1c664331708ffdb4e5e15620784abd2c000e62df351f",
@@ -15,10 +15,42 @@
   },
   "e1_execution": {
     "workflow": "E1 baseline experiment",
-    "run_id": 37901185858,
-    "run_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37901185858",
-    "tested_commit": "59828ad40b3c114488e6762f959dddf15c6a67af",
-    "status": "success"
+    "run_number": 4,
+    "run_id": 37902575846,
+    "run_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37902575846",
+    "tested_commit": "3eb4739fd1ecd25d378ce16e20022ba1b5f22624",
+    "status": "success",
+    "artifact_id": 11602869279,
+    "artifact_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37902575846/artifacts/11602869279",
+    "metrics": {
+      "sequences": 53,
+      "no_effect_expected": 15,
+      "effect_expected": 38,
+      "correct_no_effect": {
+        "B1": "1/15 (6.67%)",
+        "B2": "1/15 (6.67%)",
+        "M0": "1/15 (6.67%)",
+        "M1": "15/15 (100%)"
+      },
+      "correct_single_effect": {
+        "B1": "7/38 (18.42%)",
+        "B2": "13/38 (34.21%)",
+        "M0": "1/38 (2.63%)",
+        "M1": "38/38 (100%)"
+      },
+      "blocked_retry_attempts": {
+        "B1": 0,
+        "B2": 0,
+        "M0": 96,
+        "M1": 0
+      },
+      "sequences_with_at_least_one_block": {
+        "B1": 0,
+        "B2": 0,
+        "M0": 51,
+        "M1": 0
+      }
+    }
   },
-  "notes": "E1 executed by its dedicated GitHub Actions workflow. E2 false_attest and adversarial at depth 6; honest and hidden_honest at depth 8. Depth reported per file. No E2 fixpoint reached; E2 remains outside the dedicated E1 workflow and conformance CI."
+  "notes": "E1 executed by its dedicated GitHub Actions workflow. E1 now reports correct no-effect and correct single-effect rates against fixed denominators (15 no-effect-expected traces; 38 effect-expected traces), plus total blocked retry attempts and sequences with at least one block. E2 false_attest and adversarial at depth 6; honest and hidden_honest at depth 8. Depth reported per file. No E2 fixpoint reached; E2 remains outside the dedicated E1 workflow and conformance CI."
 }
