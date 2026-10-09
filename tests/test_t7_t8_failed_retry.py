@@ -56,8 +56,9 @@ def test_t7_unknown_to_failed_with_qualified_evidence():
     clock = FakeClock(now_ms=1_000_000)
     m = _m(clock)
     m.process_transaction(
-        lei="L", attempt_id="A", payload=PAYLOAD, receipt_lost=True
+        lei="L", attempt_id="A", payload=PAYLOAD, request_lost=True
     )
+    assert m.attempts["A"].effect_observed is False
     result = m.declare_failed(
         attempt_id="A",
         evidence_qualified=True,
@@ -93,22 +94,23 @@ def test_t8_failed_retry_eligible_allows_new_attempt_same_lei():
     assert m.attempts["A"].state == AttemptState.FAILED
 
 
-def test_t8_failed_not_retry_eligible_still_blocks():
-    """FAILED + retry_eligible=False keeps LEI locked."""
+def test_t8_retry_eligibility_is_annotation_not_effect_lock():
+    """FAILED without observed effect releases the LEI regardless of retry_eligible."""
     clock = FakeClock(now_ms=1_000_000)
     m = _m(clock)
     m.process_transaction(
-        lei="L", attempt_id="A", payload=PAYLOAD, receipt_lost=True
+        lei="L", attempt_id="A", payload=PAYLOAD, request_lost=True
     )
     m.declare_failed(
         attempt_id="A", evidence_qualified=True, retry_eligible=False
     )
-    assert m.retry_eligible_for("L") is False
-    blocked = m.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
-    assert blocked.kernel_decision == "NOT_EVALUATED"
-    assert blocked.disposition.value == "HOLD"
-    assert "A-retry" not in m.attempts or m.attempts.get("A-retry") is None
-    assert blocked.client_state == "UNKNOWN"
+    assert m.attempts["A"].state == AttemptState.FAILED
+    assert m.attempts["A"].effect_observed is False
+    assert m.attempts["A"].retry_eligible is False
+    assert m.retry_eligible_for("L") is True
+    second = m.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
+    assert "A-retry" in m.attempts
+    assert second.kernel_decision != "NOT_EVALUATED"
 
 
 def test_t7_after_timeout_still_requires_qualification():
@@ -157,3 +159,54 @@ def test_unknown_still_blocks_retry_before_t7():
     assert m.retry_eligible_for("L") is False
     r = m.retry(lei="L", attempt_id="A2", payload=PAYLOAD)
     assert r.kernel_decision == "NOT_EVALUATED"
+
+
+
+def test_target_rejection_is_failed_without_effect_and_releases_lei():
+    clock = FakeClock(now_ms=1_000_000)
+    m = _m(clock)
+    rejected = m.process_transaction(
+        lei="L", attempt_id="A1", payload=PAYLOAD, target_rejected=True
+    )
+    assert rejected.client_state == "FAILED"
+    assert rejected.disposition.value == "HOLD"
+    assert m.attempts["A1"].state == AttemptState.FAILED
+    assert m.attempts["A1"].effect_observed is False
+    assert len(m.sink.effects) == 0
+    # retry_eligible=False does not override the confirmed absence of an effect.
+    assert m.retry_eligible_for("L") is True
+    second = m.process_transaction(lei="L", attempt_id="A2", payload=PAYLOAD)
+    assert "A2" in m.attempts
+    assert second.kernel_decision != "NOT_EVALUATED"
+
+
+def test_resolved_effect_permanently_blocks_same_lei():
+    clock = FakeClock(now_ms=1_000_000)
+    m = _m(clock)
+    first = m.process_transaction(lei="L", attempt_id="A1", payload=PAYLOAD)
+    assert first.client_state == "RESOLVED"
+    assert m.attempts["A1"].effect_observed is True
+    effects_before = len(m.sink.effects)
+    second = m.process_transaction(lei="L", attempt_id="A2", payload=PAYLOAD)
+    assert second.disposition.value == "HOLD"
+    assert second.kernel_decision == "NOT_EVALUATED"
+    assert "A2" not in m.attempts
+    assert len(m.sink.effects) == effects_before
+
+
+def test_t7_cannot_declare_failed_after_observed_effect():
+    clock = FakeClock(now_ms=1_000_000)
+    m = _m(clock)
+    m.process_transaction(
+        lei="L", attempt_id="A1", payload=PAYLOAD, receipt_lost=True
+    )
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+    assert m.attempts["A1"].effect_observed is True
+    result = m.declare_failed(
+        attempt_id="A1", evidence_qualified=True, retry_eligible=True,
+        reason="CLAIMED_NON_EXECUTION",
+    )
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+    assert result.retry_eligible is False
+    assert m.retry_eligible_for("L") is False
+    assert "T7_REJECTED_EFFECT_ALREADY_OBSERVED" in [e["event"] for e in m.events]
