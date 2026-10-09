@@ -73,7 +73,7 @@ def test_s2a_pure_qualification_timeout_hold_and_blocks_retry():
     clock.advance_to(1_000_000 + TAU_K_MS)
     fired = m.check_qualification_timeouts()
     assert fired == ["A"]
-    retry = m.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
+    retry = m.retry(nonce="n-s2-retry-01", lei="L", attempt_id="A-retry", payload=PAYLOAD)
     assert retry.disposition.value == "HOLD"
     assert retry.kernel_decision == "NOT_EVALUATED"
     assert len(m.sink.effects) == baseline_effects
@@ -151,7 +151,7 @@ def test_s2_retry_does_not_call_kernel_after_timeout():
     assert bridge.calls == 1
     clock.advance_to(1_000_000 + TAU_K_MS)
     m.check_qualification_timeouts()
-    m.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
+    m.retry(nonce="n-s2-retry-02", lei="L", attempt_id="A-retry", payload=PAYLOAD)
     assert bridge.calls == 1
 
 
@@ -183,7 +183,7 @@ def test_timeout_without_effect_still_blocks_retry():
     m.admit_and_await_qualification(lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=False, nonce="n-s2")
     clock.advance_to(1_000_000 + TAU_K_MS)
     m.check_qualification_timeouts()
-    retry = m.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
+    retry = m.retry(nonce="n-s2-retry-03", lei="L", attempt_id="A-retry", payload=PAYLOAD)
     assert retry.disposition.value == "HOLD"
     assert retry.kernel_decision == "NOT_EVALUATED"
 
@@ -204,7 +204,7 @@ def test_retry_implicitly_fires_timeout_before_guard():
     m = _membrane(clock)
     m.admit_and_await_qualification(lei="L", attempt_id="A", payload=PAYLOAD, apply_effect=True, nonce="n-s2")
     clock.advance_to(1_000_000 + TAU_K_MS)
-    retry = m.retry(lei="L", attempt_id="A-retry", payload=PAYLOAD)
+    retry = m.retry(nonce="n-s2-retry-04", lei="L", attempt_id="A-retry", payload=PAYLOAD)
     assert m.attempts["A"].timeout_fired is True
     assert retry.disposition.value == "HOLD"
 
