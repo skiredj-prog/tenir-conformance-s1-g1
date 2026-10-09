@@ -1,6 +1,6 @@
 # G0 S11 — Transition as governed object
 
-**Implementation note (post-inspection correction):** canonical bytes use the `rfc8785` JCS implementation. Explicit non-legacy transitions require a configured target-Realm policy. The in-process execution commit records the transition hash, target Realm, payload digest, attempt ID and nonce; the effect sink rechecks the transition hash and payload digest at the effect boundary. This is an in-process conformance mechanism, not a signed, durable, or distributed commit protocol.
+**Implementation note (post-inspection correction):** canonical bytes use the `rfc8785` JCS implementation. Explicit non-legacy transitions require a configured target-Realm policy. The in-process execution commit records the transition hash, target Realm, payload digest, attempt ID and nonce; the effect sink rechecks the commit hash, transition hash, target Realm, attempt binding and payload digest at the effect boundary. This is an in-process conformance mechanism, not a signed, durable, or distributed commit protocol.
 
 `Transition` is the explicit governed object. Required fields: `tau_id`, `source_realm`, `target_realm`, `action_class`, `principal`, `scope`, `payload_digest`, `evidence_refs`, `source_preconditions`, `target_postconditions`, and `declared_at`.
 
@@ -22,6 +22,7 @@ A compatibility adapter still constructs a marked legacy Transition for existing
 - S11h: target-Realm policy changes the admission outcome before kernel evaluation.
 - S11i: execution commitment binds transition hash, target Realm, payload digest, attempt ID and nonce at the effect boundary.
 - S11j: basic RFC 8785 JCS byte vectors and string-only object keys are checked.
+- S11k: mutation during kernel evaluation is rejected at the effect boundary, with zero effects.
 - τ-001: admission without a Transition is refused.
 - τ-002: mutated Transition fails comparison against frozen hash.
 
