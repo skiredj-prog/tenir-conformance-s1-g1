@@ -1,0 +1,108 @@
+name: E2 I1 minimum-depth forensic
+
+on:
+  push:
+    branches:
+      - forensics/e2-i1-min-depth
+
+permissions:
+  contents: read
+
+jobs:
+  i1-depth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        depth: [1, 2, 3]
+    env:
+      PYTHONHASHSEED: "0"
+      DEPTH: ${{ matrix.depth }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install local package and test tools
+        run: python -m pip install -e ".[test]"
+      - name: Record source provenance
+        run: |
+          git rev-parse HEAD
+          sha256sum src/tenir_conformance/membrane/membrane.py experiments/e1_e2/e2_explore.py
+          python - <<'PY'
+          import os, sys
+          print("python:", sys.version)
+          print("PYTHONHASHSEED:", os.environ["PYTHONHASHSEED"])
+          print("depth:", os.environ["DEPTH"])
+          PY
+      - name: Verify deepcopy branch isolation
+        run: |
+          python - <<'PY'
+          import copy
+          from tenir_conformance.membrane import FakeClock, Membrane
+          from tenir_conformance.membrane.kernel_bridge import KernelBridge
+
+          bridge = KernelBridge()
+          membrane = Membrane(
+              bridge,
+              clock=FakeClock(now_ms=1_000_000),
+              tau_k_ms=5_000,
+              conflict_sensitive_properties={"exposure"},
+              quarantine_release_authorizer=lambda principal, lei: True,
+          )
+          membrane.admit_and_await_qualification(
+              lei="L",
+              attempt_id="A1",
+              payload={"P": 0.5, "V": 0.5, "K": 1.0, "option_space": 1.0},
+              apply_effect=False,
+              nonce="nA1",
+          )
+          clone = copy.deepcopy(membrane, memo={id(bridge): bridge})
+
+          assert clone is not membrane
+          assert clone.bridge is bridge
+          for attr in (
+              "attempts", "permits", "events", "sink", "clock",
+              "governance_quarantine", "governance_quarantine_history",
+              "_evidence_registry",
+          ):
+              assert getattr(clone, attr) is not getattr(membrane, attr), attr
+          assert clone.attempts["A1"] is not membrane.attempts["A1"]
+          assert clone.permits["A1"] is not membrane.permits["A1"]
+          assert clone.sink.effects is not membrane.sink.effects
+          membrane.permits["A1"].consumed = False
+          assert clone.permits["A1"].consumed is True
+          membrane.attempts["A1"].failure_reason = "mutated-original"
+          assert clone.attempts["A1"].failure_reason != "mutated-original"
+          print("deepcopy_branch_isolation: PASS")
+          print("bridge_identity_preserved: PASS")
+          PY
+      - name: Explore adversarial world to selected depth
+        run: |
+          python experiments/e1_e2/e2_explore.py --depth "${DEPTH}" --world adversarial --out "/tmp/e2-adversarial-depth-${DEPTH}.json"
+          python - <<'PY'
+          import json, os
+          depth = int(os.environ["DEPTH"])
+          path = f"/tmp/e2-adversarial-depth-{depth}.json"
+          result = json.load(open(path, encoding="utf-8"))
+          trace = result.get("shortest_counterexamples", {}).get("I1")
+          violated = bool(result.get("violations", {}).get("I1", 0))
+          print("depth:", result["depth"])
+          print("distinct_states:", result["distinct_states"])
+          print("transitions_checked:", result["transitions_checked"])
+          print("new_states_by_depth:", json.dumps(result["new_states_by_depth"], sort_keys=True))
+          print("I1_violation_count:", result.get("violations", {}).get("I1", 0))
+          print("shortest_I1_counterexample:", json.dumps(trace, sort_keys=True))
+          assert violated == (depth >= 3), (
+              f"expected first I1 violation at depth 3; depth={depth}, violations={result.get('violations')}"
+          )
+          if depth == 3:
+              assert trace is not None and len(trace["trace"]) == 3, trace
+          PY
+      - name: Upload depth result
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2-adversarial-depth-${{ matrix.depth }}
+          path: /tmp/e2-adversarial-depth-${{ matrix.depth }}.json
+          if-no-files-found: error
