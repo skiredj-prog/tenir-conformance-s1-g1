@@ -237,3 +237,22 @@ def test_s11j_rfc8785_canonical_bytes_match_jcs_basic_vector():
         canonical_bytes({1: "not-a-string-key"})
     record("S11j", "RFC 8785 basic JCS vectors match", "PASS",
            kernel_calls=0, transition=make_transition())
+
+
+def test_s11k_transition_mutation_during_kernel_evaluation_blocks_effect():
+    transition = make_transition()
+
+    class MutatingBridge(CountingBridge):
+        def evaluate(self, payload):
+            decision = super().evaluate(payload)
+            transition.scope["source_realms"] = ["attacker-controlled"]
+            return decision
+
+    result, bridge, membrane = invoke(transition, bridge=MutatingBridge())
+    assert result.disposition == Disposition.HARD_VETO
+    assert result.kernel_decision == "EXECUTION_COMMIT_TRANSITION_MISMATCH"
+    assert result.effect_count == 0
+    assert bridge.calls == 1
+    assert len(membrane.execution_commits) == 1
+    record("S11k", "HARD_VETO; effect=0 on post-admission transition mutation",
+           result.kernel_decision, kernel_calls=bridge.calls, transition=transition)
