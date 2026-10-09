@@ -1,0 +1,35 @@
+name: Runtime Stress Rig (prototype)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "experiments/runtime_stress/**"
+      - ".github/workflows/runtime-stress.yml"
+  pull_request:
+    paths:
+      - "experiments/runtime_stress/**"
+      - ".github/workflows/runtime-stress.yml"
+  workflow_dispatch:
+
+jobs:
+  runtime-stress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install "pytest>=8,<9"
+      - name: Generate deterministic scenario evidence
+        run: python experiments/runtime_stress/tau_runtime_stress.py --output artifacts/runtime-stress/result.json
+      - name: Test stress-rig oracles
+        run: python -m pytest experiments/runtime_stress/test_tau_runtime_stress.py -v --tb=short
+      - name: Upload prototype scenario evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-stress-prototype-evidence
+          path: artifacts/runtime-stress/
+          if-no-files-found: error
