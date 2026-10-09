@@ -24,6 +24,8 @@ jobs:
         run: pip install -e ".[test]"
       - name: Record exact script hash
         run: sha256sum experiments/e1_e2/e2_explore.py
+      - name: Validate S12 ND-1 independently
+        run: python -m pytest tests/test_s12_nd1_realm_divergence.py -q
       - name: Honest depth 1
         env:
           PYTHONHASHSEED: "0"
