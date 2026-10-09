@@ -540,7 +540,9 @@ class Membrane:
                     refusal_reason.startswith("REALM_INVARIANT_VIOLATED:")
                     or refusal_reason in {"PRINCIPAL_NOT_ALLOWED", "ACTION_CLASS_NOT_ALLOWED"}
                 )
-                public_reason = (refusal_reason if hard_veto
+                # Preserve the stable S11 public refusal reason for policy
+                # denials; invariant violations retain their specific ID for audit.
+                public_reason = (refusal_reason if refusal_reason.startswith("REALM_INVARIANT_VIOLATED:")
                                  else "TARGET_REALM_POLICY_REJECTED")
                 return MembraneResult(
                     Disposition.HARD_VETO if hard_veto else Disposition.HOLD,
