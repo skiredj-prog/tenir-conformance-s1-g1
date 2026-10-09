@@ -469,17 +469,21 @@ class Membrane:
                 return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                     len(self.sink.effects), 0.0, "UNKNOWN_TARGET_REALM", False,
                     events=[e["event"] for e in self.events])
-            if not realm_policy.admits(
+            refusal_reason = realm_policy.refusal_reason(
                 action_class=transition.action_class,
                 principal=transition.principal,
                 declared_postconditions=transition.target_postconditions,
-            ):
+                declared_effect_attributes=getattr(transition, "declared_effect_attributes", None),
+                declared_exposure=getattr(transition, "declared_exposure", None),
+            )
+            if refusal_reason is not None:
                 self._log("TARGET_REALM_POLICY_REJECTED", lei=lei, attempt_id=attempt_id,
                           target_realm=transition.target_realm, action_class=transition.action_class,
                           principal=transition.principal,
-                          declared_postconditions=list(transition.target_postconditions))
+                          declared_postconditions=list(transition.target_postconditions),
+                          reason=refusal_reason)
                 return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
-                    len(self.sink.effects), 0.0, "TARGET_REALM_POLICY_REJECTED", False,
+                    len(self.sink.effects), 0.0, refusal_reason, False,
                     events=[e["event"] for e in self.events])
         allowed_sources = transition.scope.get("source_realms")
         if allowed_sources is not None and transition.source_realm not in allowed_sources:
