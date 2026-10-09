@@ -21,7 +21,12 @@ def test_s8a_barrier_synchronized_same_lei_admits_at_most_one(monkeypatch):
 
     def synchronized_guard(lei: str) -> bool:
         unresolved = original_has_unresolved(lei)
-        if lei == "L" and not unresolved:
+        lock = getattr(membrane, "_admission_lock", None)
+        # Baseline: force both callers past the check before either registers.
+        # Corrected implementation: do not wait inside the critical section,
+        # otherwise the first thread would wait for a second thread blocked
+        # on the same lock.
+        if lei == "L" and not unresolved and not (lock is not None and lock.locked()):
             both_checked.wait(timeout=5)
         return unresolved
 
