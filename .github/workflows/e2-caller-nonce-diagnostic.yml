@@ -28,15 +28,33 @@ jobs:
         env:
           PYTHONHASHSEED: "0"
         run: python experiments/e1_e2/e2_explore.py --world honest --depth 1 --out /tmp/e2-honest-depth1.json
+      - name: Validate Depth 1 Baseline
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('/tmp/e2-honest-depth1.json')
+          data = json.loads(p.read_text())
+          states = data.get('distinct_states')
+          inventory = data.get('state_inventory_depth1', [])
+          print(f"Depth 1 distinct_states={states}; expected=16")
+          print(f"Depth 1 inventory entries={len(inventory)}")
+          for item in inventory:
+              print("D1_STATE " + json.dumps(item, sort_keys=True))
+          if states != 16:
+              raise SystemExit(f"Depth 1 count mismatch: expected 16, got {states}")
+          if len(inventory) != states:
+              raise SystemExit(f"Depth 1 inventory mismatch: {len(inventory)} entries for {states} states")
+          PY
       - name: Honest depth 8
+        if: success()
         env:
           PYTHONHASHSEED: "0"
         run: python experiments/e1_e2/e2_explore.py --world honest --depth 8 --out /tmp/e2-honest-depth8.json
       - name: Upload results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2-caller-nonce-diagnostic
-          path: |
-            /tmp/e2-honest-depth1.json
-            /tmp/e2-honest-depth8.json
-          if-no-files-found: error
+          path: /tmp/e2-honest-depth*.json
+          if-no-files-found: warn
