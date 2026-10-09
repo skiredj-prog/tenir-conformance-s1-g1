@@ -7,7 +7,7 @@ name = "tenir-conformance-s1"
 version = "0.1.0"
 description = "S1 executable conformance harness for TENIR / REG (G0+G1)"
 requires-python = ">=3.10"
-dependencies = ["cryptography>=42,<47", "PyYAML>=6,<7"]
+dependencies = ["cryptography>=42,<47", "PyYAML>=6,<7", "rfc8785>=0.1.4,<1"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<9"]
