@@ -90,7 +90,9 @@ def _dump_s6(
     subcase: str,
     *,
     effects_before_reconcile: int,
+    effects_after_reconcile: int,
     permits_before_reconcile: dict[str, dict[str, object]],
+    permits_after_reconcile: dict[str, dict[str, object]],
     result,
     assertions: dict[str, object],
     extra: dict | None = None,
@@ -133,14 +135,16 @@ def _dump_s6(
             "retry_eligible": result.retry_eligible,
         },
         "effect_sink_count_before_reconcile": effects_before_reconcile,
-        "effect_sink_count_after_reconcile": len(membrane.sink.effects),
-        "effect_sink_delta_during_reconcile": len(membrane.sink.effects) - effects_before_reconcile,
+        "effect_sink_count_after_reconcile": effects_after_reconcile,
+        "effect_sink_delta_during_reconcile": effects_after_reconcile - effects_before_reconcile,
         "permit_registry_before_reconcile": permits_before_reconcile,
-        "permit_registry_after_reconcile": permits,
+        "permit_registry_after_reconcile": permits_after_reconcile,
         "permit_ids_before_reconcile": sorted(permits_before_reconcile),
-        "permit_ids_after_reconcile": sorted(permits),
-        "attempts": attempt_map,
-        "effect_sink": membrane.sink.effects,
+        "permit_ids_after_reconcile": sorted(permits_after_reconcile),
+        "permit_registry_after_scenario": permits,
+        "permit_ids_after_scenario": sorted(permits),
+        "attempts_after_scenario": attempt_map,
+        "effect_sink_after_scenario": membrane.sink.effects,
         "transition_log": membrane.events,
         "assertions": assertions,
         **(extra or {}),
@@ -150,7 +154,7 @@ def _dump_s6(
         encoding="utf-8",
     )
     (ARTIFACTS / f"{subcase}_result.json").write_text(
-        json.dumps({k: v for k, v in body.items() if k not in {"transition_log", "effect_sink"}},
+        json.dumps({k: v for k, v in body.items() if k not in {"transition_log", "effect_sink_after_scenario"}},
                    sort_keys=True, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
@@ -165,9 +169,9 @@ def _dump_s6(
     (ARTIFACTS / f"{subcase}_effect_sink.json").write_text(
         json.dumps({
             "before_reconcile": effects_before_reconcile,
-            "after_reconcile": len(membrane.sink.effects),
-            "delta_during_reconcile": len(membrane.sink.effects) - effects_before_reconcile,
-            "effects": membrane.sink.effects,
+            "after_reconcile": effects_after_reconcile,
+            "delta_during_reconcile": effects_after_reconcile - effects_before_reconcile,
+            "effects_after_scenario": membrane.sink.effects,
         }, sort_keys=True, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
@@ -195,6 +199,8 @@ def test_s6a_reconcile_committed_converges_without_execution_or_permit_mutation(
         attempt_id="A1",
         evidence=_evidence("E-S6A-COMMITTED", "COMMITTED"),
     )
+    effects_after_reconcile = len(m.sink.effects)
+    permits_after_reconcile = _permit_snapshot(m)
 
     assert result.disposition.value == "PASS"
     assert result.client_state == "RESOLVED"
@@ -217,7 +223,7 @@ def test_s6a_reconcile_committed_converges_without_execution_or_permit_mutation(
     assertions = {
         "A1_api_decision": result.kernel_decision == "RECONCILIATION_SUCCESS",
         "A2_terminal_state": m.attempts["A1"].state == AttemptState.RESOLVED,
-        "A3_effect_delta_zero": len(m.sink.effects) - before_effects == 0,
+        "A3_effect_delta_zero": effects_after_reconcile - before_effects == 0,
         "A4_canonical_event": "RECONCILIATION_SUCCESS" in [e["event"] for e in m.events],
         "A5_permit_isolation": _permit_snapshot(m) == permits_before and m.permits["A1"].consumed,
         "A6_resolved_attempt_blocks_A2": "A2" not in m.attempts,
@@ -227,7 +233,9 @@ def test_s6a_reconcile_committed_converges_without_execution_or_permit_mutation(
     _dump_s6(
         m, "S6a",
         effects_before_reconcile=before_effects,
+        effects_after_reconcile=effects_after_reconcile,
         permits_before_reconcile=permits_before,
+        permits_after_reconcile=permits_after_reconcile,
         result=result,
         assertions=assertions,
         extra={"a2_admission_disposition": a2.disposition.value},
@@ -250,6 +258,8 @@ def test_s6b_reconcile_non_execution_releases_effect_lock_independent_of_retry_a
         ),
         retry_eligible=False,
     )
+    effects_after_reconcile = len(m.sink.effects)
+    permits_after_reconcile = _permit_snapshot(m)
 
     assert result.disposition.value == "HOLD"
     assert result.client_state == "FAILED"
@@ -278,9 +288,9 @@ def test_s6b_reconcile_non_execution_releases_effect_lock_independent_of_retry_a
     assertions = {
         "A1_api_decision": result.kernel_decision == "RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION",
         "A2_terminal_state": m.attempts["A1"].state == AttemptState.FAILED,
-        "A3_effect_delta_zero": len(m.sink.effects) - before_effects == 0,
+        "A3_effect_delta_zero": effects_after_reconcile - before_effects == 0,
         "A4_canonical_event": "RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION" in [e["event"] for e in m.events],
-        "A5_permit_isolation": _permit_snapshot(m)["A1"]["consumed"] and _permit_snapshot(m)["A2"]["consumed"],
+        "A5_permit_isolation": permits_after_reconcile == permits_before and permits_after_reconcile["A1"]["consumed"],
         "A6_failed_no_effect_unlocks_even_retry_annotation_false": m.attempts["A1"].retry_eligible is False and "A2" in m.attempts,
         "A7_claim_scope": "tested sequential interleavings only",
     }
@@ -288,7 +298,9 @@ def test_s6b_reconcile_non_execution_releases_effect_lock_independent_of_retry_a
     _dump_s6(
         m, "S6b",
         effects_before_reconcile=before_effects,
+        effects_after_reconcile=effects_after_reconcile,
         permits_before_reconcile=permits_before,
+        permits_after_reconcile=permits_after_reconcile,
         result=result,
         assertions=assertions,
         extra={"a2_admission_disposition": a2.disposition.value,
