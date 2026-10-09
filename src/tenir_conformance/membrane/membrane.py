@@ -365,6 +365,7 @@ class Membrane:
                             nonce: str = "", request_lost: bool = False,
                             receipt_lost: bool = False,
                             target_rejected: bool = False,
+                            expected_transition_hash: str | None = None,
                             action_class: str | None = None,
                             principal: str | None = None) -> MembraneResult:
         if not isinstance(nonce, str) or not nonce.strip():
@@ -397,6 +398,13 @@ class Membrane:
         if not isinstance(transition, Transition):
             raise TypeError("TRANSITION_REQUIRED")
         transition_hash = canonical_hash(transition)
+        if expected_transition_hash is not None and transition_hash != expected_transition_hash:
+            self._log("TRANSITION_HASH_CHANGED", lei=lei, attempt_id=attempt_id,
+                      expected_transition_hash=expected_transition_hash,
+                      actual_transition_hash=transition_hash)
+            return MembraneResult(Disposition.HARD_VETO, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "TRANSITION_HASH_CHANGED", False,
+                events=[e["event"] for e in self.events])
         # The governed object's identity and scope are checked before registration
         # and before the kernel. Payload digest binding prevents substitution.
         if transition.tau_id != self.tau_contract.tau_id:
@@ -418,6 +426,11 @@ class Membrane:
                       transition_hash=transition_hash)
             return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
                 len(self.sink.effects), 0.0, "TARGET_POSTCONDITIONS_UNDECLARED", False,
+                events=[e["event"] for e in self.events])
+        allowed_sources = transition.scope.get("source_realms")
+        if allowed_sources is not None and transition.source_realm not in allowed_sources:
+            return MembraneResult(Disposition.HOLD, AttemptState.UNKNOWN.value, False,
+                len(self.sink.effects), 0.0, "TRANSITION_SOURCE_REALM_OUT_OF_SCOPE", False,
                 events=[e["event"] for e in self.events])
         transition_lei = transition.scope.get("lei", lei)
         if transition_lei != lei:
