@@ -230,10 +230,10 @@ def test_s11h_target_realm_policy_controls_admission():
     allow_result, allow_bridge, _ = invoke(allowed, realm_policies=policies)
     deny_result, deny_bridge, _ = invoke(denied, realm_policies=policies)
     assert allow_result.disposition == Disposition.PASS
-    assert deny_result.disposition == Disposition.HOLD
+    assert deny_result.disposition == Disposition.HARD_VETO
     assert deny_result.kernel_decision == "TARGET_REALM_POLICY_REJECTED"
     assert allow_bridge.calls == 1 and deny_bridge.calls == 0
-    record("S11h", "B PASS; C HOLD before kernel", deny_result.kernel_decision,
+    record("S11h", "B PASS; C HARD_VETO before kernel", deny_result.kernel_decision,
            kernel_calls=deny_bridge.calls, transition=denied)
 
 
