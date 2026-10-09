@@ -61,4 +61,10 @@ def test_s8a_barrier_synchronized_same_lei_admits_at_most_one(monkeypatch):
     permits_for_lei = [p for p in membrane.permits.values() if p.lei == "L"]
     assert len(permits_for_lei) == 1
     assert len(membrane.sink.effects) <= 1
-    assert Counter(e["event"] for e in membrane.events)["T1_guard_FALSE"] == 1
+    event_counts = Counter(e["event"] for e in membrane.events)
+    assert event_counts["T1_AttemptRegistered"] == 1
+    assert event_counts["T1_guard_FALSE"] == 1
+    assert sorted((result.client_state, result.disposition.value) for result in results.values()) == [
+        ("RESOLVED", "PASS"),
+        ("UNKNOWN", "HOLD"),
+    ]
