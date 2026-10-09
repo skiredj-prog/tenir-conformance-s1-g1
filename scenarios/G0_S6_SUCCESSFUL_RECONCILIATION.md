@@ -13,7 +13,7 @@ $$
 $$
 
 **Normative Invariants:** REG-CORE-020, REG-CORE-015, REG-CORE-001  
-**Implementation Status:** IMPLEMENTATION IN PR / EMPIRICAL VALIDATION PENDING
+**Implementation Status:** IMPLEMENTED IN PR / EMPIRICALLY VALIDATED — TESTED SEQUENTIAL INTERLEAVINGS ONLY
 
 ---
 
@@ -74,7 +74,7 @@ Reconciliation/failure adjudication establishes qualified evidence of non-execut
 | A2 admitted | **admit_and_await_qualification** / **_register_attempt** accepts a new attempt ID only under the S6 retry rule |
 | No new effects | **len(sink.effects)** remains unchanged during **reconcile** or **declare_failed** |
 | No permit reuse | Initial A1 permit remains consumed; A2 must receive its own permit only upon normal admission |
-| Canonical trace | **RECONCILIATION_SUCCESS** for S6a; failure adjudication also retains the canonical T7 failure event |
+| Canonical trace | **RECONCILIATION_SUCCESS** for S6a; **RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION** for S6b |
 
 ---
 
@@ -106,7 +106,7 @@ For empirical PASS, the harness must record:
 2. **LEI lock/map state:** Evidence that S6b releases the effect lock only after A1 becomes FAILED with **non_execution_confirmed=True** and **effect_observed=False**; a RESOLVED A1 remains locked. Record **retry_eligible** as metadata, not as the lock condition.
 3. **EffectSink delta:** **count_after - count_before == 0** measured over the **reconcile** or **declare_failed** call itself.
 4. **Permit registry log:** No new permit during reconciliation/failure adjudication; A1's consumed permit remains consumed and is not reused; A2 receives a separate permit only through normal admission when retry is eligible.
-5. **Raw JSONL transition log:** Trace showing UNKNOWN to RESOLVED for S6a, and UNKNOWN to FAILED plus retry eligibility for S6b.
+5. **Raw JSONL transition log:** Trace showing UNKNOWN to RESOLVED for S6a, and UNKNOWN to FAILED with `non_execution_confirmed=True` for S6b; `retry_eligible` is recorded as metadata.
 
 The harness must explicitly separate the measured observation/failure-adjudication window from the later A2 admission/execution window.
 
@@ -119,7 +119,7 @@ The harness must explicitly separate the measured observation/failure-adjudicati
 | A1 | Client/API | Decision upon valid reconciliation | Explicit successful state update or idempotent acknowledgement |
 | A2 | State safety | Post-evaluation state of A1 | RESOLVED or FAILED, according to qualified evidence |
 | A3 | Effect invariant | Delta in effect count | Delta NewEffects equals zero during reconciliation/adjudication |
-| A4 | Guard decision | Explicit reconciliation trace | Canonical RECONCILIATION_SUCCESS event for S6a; T7 failure event for S6b |
+| A4 | Guard decision | Explicit reconciliation trace | Canonical RECONCILIATION_SUCCESS event for S6a; RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION for S6b |
 | A5 | Permit safety | Execution authorization isolation | No new permit during reconciliation; A1's consumed permit is not reused |
 | A6 | Identity/effect binding | LEI lock behavior | A2 admitted only after FAILED + qualified non-execution evidence + no observed effect; retry_eligible is not the lock condition |
 | A7 | Empiricism | Scientific claim scope | Tested sequential interleavings only |
@@ -132,6 +132,6 @@ The harness must explicitly separate the measured observation/failure-adjudicati
 >
 > - S6a (UNKNOWN to RESOLVED) requires the dedicated **reconcile** observation API, distinct from late receipt delivery.
 > - S6b (UNKNOWN to FAILED plus LEI unlock) requires bound evidence explicitly confirming non-execution; **retry_eligible** is annotation only.
-> - EffectSink delta during reconciliation/failure adjudication equals zero.
+> - EffectSink delta during reconciliation equals zero; no permit is issued or reused by the reconciliation path.
 >
-> This is not a formal proof of real-time thread safety under unconstrained asynchronous concurrency. G0 S6 canonical conformance remains PENDING until the reconciliation API and test harness are implemented and empirically validated.
+> CI run #53 passed the full S1–S6 + T7/T8 workflow, including the S6 conformance suite and S6 evidence-artifact upload. This validates the tested sequential interleavings only; it is not a formal proof of real-time thread safety under unconstrained asynchronous concurrency. PR review and merge remain pending.
