@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "description": "Adversarial models are EXPECTED to FAIL. A PASS here is a regression anomaly (model weakened), not a product success.",
+  "hypotheses": {
+    "S12-H1": {
+      "expected_status": "FAIL",
+      "required_actions_subsequence": ["commit_bypass_veto", "execute"]
+    },
+    "S12-H1-intended-only": {
+      "expected_status": "PASS",
+      "required_actions_subsequence": []
+    },
+    "S12-H2": {
+      "expected_status": "FAIL",
+      "required_actions_subsequence": ["execute_without_commit"]
+    },
+    "S11-H1": {
+      "expected_status": "FAIL",
+      "required_actions_subsequence": ["swap_id", "commit_unbound"]
+    },
+    "S11-H1-intended-only": {
+      "expected_status": "VACUOUS",
+      "required_actions_subsequence": []
+    },
+    "S8-H1": {
+      "expected_status": "FAIL",
+      "required_actions_subsequence": ["adversarial_double_effect"]
+    },
+    "S8-H1-intended-only": {
+      "expected_status": "PASS",
+      "required_actions_subsequence": []
+    }
+  }
+}
