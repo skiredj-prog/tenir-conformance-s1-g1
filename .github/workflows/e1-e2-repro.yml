@@ -29,6 +29,7 @@ jobs:
           git rev-parse HEAD
           git rev-parse 84e46d94a6259ad1ec57757074a422d2f356ec49
       - name: Re-run E1 and compare committed output
+        continue-on-error: false
         run: |
           set -o pipefail
           PYTHONPATH=src python experiments/e1_e2/e1_baseline.py 2>&1 | tee /tmp/e1_actual.txt
