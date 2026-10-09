@@ -1,0 +1,44 @@
+[
+  {
+    "system": "B1 stateless PEP/PDP",
+    "sequences": 53,
+    "duplicate_effects": 14,
+    "exactly_one_effect": 24,
+    "zero_effects": 15,
+    "client_confirmed_success": 13,
+    "exactly_one_effect_but_client_unaware": 17,
+    "sequences_where_membrane_blocked_a_retry": 0
+  },
+  {
+    "system": "B2 PEP/PDP + idempotency key (reused)",
+    "sequences": 53,
+    "duplicate_effects": 0,
+    "exactly_one_effect": 38,
+    "zero_effects": 15,
+    "client_confirmed_success": 13,
+    "exactly_one_effect_but_client_unaware": 25,
+    "sequences_where_membrane_blocked_a_retry": 0
+  },
+  {
+    "system": "M0 membrane, no reconciliation",
+    "sequences": 53,
+    "duplicate_effects": 0,
+    "exactly_one_effect": 18,
+    "zero_effects": 35,
+    "client_confirmed_success": 1,
+    "exactly_one_effect_but_client_unaware": 17,
+    "sequences_where_membrane_blocked_a_retry": 51
+  },
+  {
+    "system": "M1 membrane + evidence-bound reconciliation",
+    "sequences": 53,
+    "duplicate_effects": 0,
+    "exactly_one_effect": 38,
+    "zero_effects": 15,
+    "client_confirmed_success": 38,
+    "exactly_one_effect_but_client_unaware": 0,
+    "sequences_where_membrane_blocked_a_retry": 0
+  }
+]
+B1 duplicate sequences: 14 [['F1', 'F2', 'F0'], ['F1', 'F2', 'F2'], ['F2', 'F0'], ['F2', 'F1', 'F0'], ['F2', 'F1', 'F2'], ['F2', 'F2', 'F0']]
+M0/M1 any duplicate: False
