@@ -1,0 +1,63 @@
+{
+  "title": "E2 reconstructed observed baseline",
+  "date": "2026-10-09",
+  "repository": "skiredj-prog/tenir-conformance-s1-g1",
+  "tested_commit": "dccef80d8b118b8585bd5519ec921a46524bf236",
+  "script": "experiments/e1_e2/e2_explore.py",
+  "script_sha256": "e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9",
+  "workflow_run_id": 37935448226,
+  "workflow_run_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37935448226",
+  "python": "3.12.15",
+  "scope": "All four worlds at depth 8; both fallback and real backend. Counts were identical across backend selections.",
+  "results": {
+    "honest": {
+      "depth": 8,
+      "distinct_states": 24944,
+      "transitions_checked": 395096,
+      "violations": {},
+      "artifact_ids": {
+        "fallback": 11618147090,
+        "real": 11617583203
+      }
+    },
+    "false_attest": {
+      "depth": 8,
+      "distinct_states": 71131,
+      "transitions_checked": 901340,
+      "violations": {},
+      "artifact_ids": {
+        "fallback": 11618121867,
+        "real": 11617922044
+      }
+    },
+    "hidden_honest": {
+      "depth": 8,
+      "distinct_states": 35358,
+      "transitions_checked": 593586,
+      "violations": {},
+      "artifact_ids": {
+        "fallback": 11618830066,
+        "real": 11617961793
+      }
+    },
+    "adversarial": {
+      "depth": 8,
+      "distinct_states": 213565,
+      "transitions_checked": 2681193,
+      "violations": {
+        "I1": 774705
+      },
+      "artifact_ids": {
+        "fallback": 11618721201,
+        "real": 11617679025
+      }
+    }
+  },
+  "interpretation": {
+    "honest": "No recorded invariant violations in this bounded run.",
+    "false_attest": "No recorded invariant violations in this bounded run.",
+    "hidden_honest": "No recorded invariant violations in this bounded run.",
+    "adversarial": "I1 effect-at-most-once violated 774705 times; this is a behavioral finding and prevents treating this run as a safety pass."
+  },
+  "provenance": "This is a new baseline, not a restoration of the pre-S8 baseline. The old script SHA-256 was not recovered from the scanned reachable Git objects. The exploration script was not modified."
+}
