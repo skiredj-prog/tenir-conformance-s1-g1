@@ -1,6 +1,6 @@
 # G0 — S1: Evidence Lost After Commit
 
-**Status:** Candidate operational definition (proposed). Not yet an approved normative scenario of REG.
+**Status:** Executed against the RFC-4 lab membrane; empirically validated for the tested sequential interleavings. This operational result is not, by itself, normative approval of REG.
 
 **Claim**  
 When the client cannot observe whether a consequential effect occurred, the retry must be held, not executed. Reconciliation resolves the state before any new attempt is authorized.
@@ -47,5 +47,4 @@ When the client cannot observe whether a consequential effect occurred, the retr
 - SHA-256 of the scenario definition file
 
 **Epistemic boundary**  
-Passing tests against a harness only establish that the harness satisfies these assertions.  
-They do **not** validate a production gateway, a real transport, or the REG/TENIR protocol itself until the harness is adapted to call the actual subject under test.
+Passing tests establish the observed S1 assertions for the RFC-4 lab membrane and the tested sequential interleavings only. They do **not** establish production-gateway behavior, real distributed-transport correctness, unconstrained concurrency safety, cryptographic evidence verification, or production REG/TENIR certification.
