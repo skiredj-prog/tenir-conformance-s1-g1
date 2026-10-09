@@ -1,0 +1,13 @@
+# Versioned G0 S7 lab trust root.
+# K1 is an RFC 8032 test-vector key for reproducible conformance tests only.
+# NEVER use this test key or trust root in a production deployment.
+version: 1
+root_id: TENIR-LAB-S7-TEST-ROOT
+root_epoch: 1
+keys:
+  K1:
+    algorithm: Ed25519
+    public_key_hex: d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a
+    key_epoch: 1
+    status: active
+    revoked_at_epoch: null
