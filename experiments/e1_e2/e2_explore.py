@@ -282,9 +282,9 @@ def explore(depth, world_mode, max_states=2_000_000):
                 # Other ValueErrors represent expected business guards/rejections.
                 dispatch = label.startswith(("process", "admit", "retry"))  # state may mutate before raising
             except KeyError:
-                # A receipt delivered before its attempt exists is an expected
-                # rejected event in this exhaustive event alphabet.
-                if not label.startswith("receipt("):
+                # Evidence events before their attempt exists are expected rejected
+                # moves in this exhaustive event alphabet. Keep the allowlist narrow.
+                if not (label.startswith("receipt(") or label.startswith("declare_failed(")):
                     raise
                 dispatch = False
             except Exception:
