@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import threading
@@ -226,6 +227,26 @@ class Membrane:
         self.trust_root = load_trust_root(trust_root)
         # Fail closed: quarantine release requires an injected authority check.
         self.quarantine_release_authorizer = quarantine_release_authorizer
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "Membrane":
+        """Clone explorer state without copying the process-local synchronization lock.
+
+        A copied membrane receives a fresh lock. This preserves the single-threaded
+        explicit-state explorer's semantics without sharing synchronization state
+        between cloned instances.
+        """
+        existing = memo.get(id(self))
+        if existing is not None:
+            return existing
+        cls = self.__class__
+        new = cls.__new__(cls)
+        memo[id(self)] = new
+        for key, value in self.__dict__.items():
+            if key == "_admission_lock":
+                setattr(new, key, threading.RLock())
+            else:
+                setattr(new, key, copy.deepcopy(value, memo))
+        return new
 
     def _log(self, event: str, **fields: Any) -> None:
         self.events.append({"ts_ms": self.clock.now_ms, "event": event, **fields})
