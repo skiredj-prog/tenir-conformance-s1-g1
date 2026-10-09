@@ -40,7 +40,7 @@ class _AdmitBridge:
 def _run(document: dict) -> tuple[Disposition, str]:
     policy = RealmPolicy.load(document, public_key_hex=_TEST_PUBLIC_KEY)
     transition = CrossRealmTransition(
-        tau_id="TAU-ND1", source_realm="R_A", target_realm="R_B", action_class="default",
+        tau_id="TAU-DEFAULT-TEST", source_realm="R_A", target_realm="R_B", action_class="default",
         principal="default", scope={"case": "ND-1"}, payload_digest=payload_sha256(_PAYLOAD),
         evidence_refs=("nd1-evidence",), source_preconditions=("source-valid",),
         target_postconditions=("effect-applied",), declared_at="2026-10-09T00:00:00Z",
@@ -72,3 +72,13 @@ def test_nd1_same_realm_id_different_invariants_and_max_exposure_diverge():
     assert restrictive_verdict == Disposition.HOLD, (restrictive_verdict, restrictive_reason)
     assert permissive_verdict != restrictive_verdict
     assert restrictive_reason == "REALM_INVARIANT_VIOLATED:MAX_EXPOSURE"
+
+
+def test_json_invariant_predicate_can_refuse_without_exposure_cap_change():
+    document = _signed_realm_yaml(invariants=[{
+        "id": "PRESERVE_LOW_EXPOSURE", "predicate": {"op": "lte",
+        "left": {"var": "exposure"}, "right": {"const": 0.25}},
+    }], max_exposure=1.0)
+    verdict, reason = _run(document)
+    assert verdict == Disposition.HOLD
+    assert reason == "REALM_INVARIANT_VIOLATED:PRESERVE_LOW_EXPOSURE"
