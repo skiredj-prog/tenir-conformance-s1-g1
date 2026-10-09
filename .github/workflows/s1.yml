@@ -69,6 +69,30 @@ jobs:
       - name: Run ND-1 Realm policy divergence gate
         run: python -m pytest tests/test_s12_nd1_realm_divergence.py -v --tb=short
 
+      - name: Run E2 bounded state exploration (all four worlds)
+        run: |
+          set -euo pipefail
+          for world in honest false_attest hidden_honest adversarial; do
+            python experiments/e1_e2/e2_explore.py --depth 6 --world "$world" --out "/tmp/e2-$world.json"
+          done
+          python - <<'PY'
+          import json
+          expected = {
+              "honest": 36892,
+              "false_attest": 14446,
+              "hidden_honest": 49502,
+              "adversarial": 30485,
+          }
+          for world, expected_states in expected.items():
+              with open(f"/tmp/e2-{world}.json", encoding="utf-8") as f:
+                  result = json.load(f)
+              actual = result["distinct_states"]
+              print(f'{world}: distinct_states={actual}, transitions_checked={result["transitions_checked"]}, violations={result["violations"]}')
+              if actual != expected_states:
+                  raise SystemExit(f"STATE COUNT REGRESSION: {world}: expected {expected_states}, got {actual}")
+          print("E2 state counts match the pre-S8 baseline in all four worlds.")
+          PY
+
 
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
