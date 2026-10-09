@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tenir_conformance.membrane import Disposition, Membrane, Transition, canonical_hash, payload_sha256
+from tenir_conformance.membrane import Disposition, Membrane, Transition, canonical_bytes, canonical_hash, payload_sha256
 from tenir_conformance.membrane.kernel_bridge import KernelDecision
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -58,9 +58,16 @@ def record(case, expected, actual, *, kernel_calls, transition=None, details=Non
     )
 
 
-def invoke(transition, *, bridge=None, payload=PAYLOAD, **kwargs):
+def invoke(transition, *, bridge=None, payload=PAYLOAD, realm_policies=None, **kwargs):
     bridge = bridge or CountingBridge()
-    membrane = Membrane(bridge)
+    policies = realm_policies if realm_policies is not None else {
+        "B": {
+            "allowed_action_classes": ["default"],
+            "allowed_principals": ["default"],
+            "required_postconditions": ["effect-applied"],
+        }
+    }
+    membrane = Membrane(bridge, realm_policies=policies)
     result = membrane.process_transaction(
         lei="LEI-1", attempt_id="S11-A1", transition=transition,
         payload=payload, nonce="n1", **kwargs
@@ -177,3 +184,75 @@ def test_tau_002_mutated_transition_against_frozen_hash_is_rejected():
     assert result.kernel_decision == "TRANSITION_HASH_CHANGED" and bridge.calls == 0
     record("TAU-002", "TRANSITION_HASH_CHANGED; kernel_calls=0", result.kernel_decision,
            kernel_calls=bridge.calls, transition=transition, details={"frozen_hash": frozen_hash})
+
+
+def test_s11h_target_realm_policy_controls_admission():
+    allowed = make_transition(target="B")
+    denied = make_transition(target="C")
+    policies = {
+        "B": {"allowed_action_classes": ["default"], "allowed_principals": ["default"],
+              "required_postconditions": ["effect-applied"]},
+        "C": {"allowed_action_classes": ["other"], "allowed_principals": ["default"],
+              "required_postconditions": ["effect-applied"]},
+    }
+    allow_result, allow_bridge, _ = invoke(allowed, realm_policies=policies)
+    deny_result, deny_bridge, _ = invoke(denied, realm_policies=policies)
+    assert allow_result.disposition == Disposition.PASS
+    assert deny_result.disposition == Disposition.HOLD
+    assert deny_result.kernel_decision == "TARGET_REALM_POLICY_REJECTED"
+    assert allow_bridge.calls == 1 and deny_bridge.calls == 0
+    record("S11h", "B PASS; C HOLD before kernel", deny_result.kernel_decision,
+           kernel_calls=deny_bridge.calls, transition=denied)
+
+
+def test_s11i_effect_boundary_records_commit_bound_to_transition_and_payload():
+    transition = make_transition()
+    result, bridge, membrane = invoke(transition)
+    assert result.disposition == Disposition.PASS
+    assert len(membrane.execution_commits) == 1
+    commit = membrane.execution_commits[0]
+    assert commit["transition_hash"] == canonical_hash(transition)
+    assert commit["payload_digest"] == payload_sha256(PAYLOAD)
+    assert commit["target_realm"] == transition.target_realm
+    expected = {
+        "schema": "tenir.execution-commit.v1",
+        "attempt_id": "S11-A1",
+        "nonce": "n1",
+        "tau_id": transition.tau_id,
+        "target_realm": transition.target_realm,
+        "transition_hash": canonical_hash(transition),
+        "payload_digest": payload_sha256(PAYLOAD),
+    }
+    import hashlib as _hashlib
+    assert commit["commit_hash"] == _hashlib.sha256(canonical_bytes(expected)).hexdigest()
+    record("S11i", "PASS; execution commit binds transition, target and payload",
+           "PASS", kernel_calls=bridge.calls, transition=transition,
+           details={"commit_hash": commit["commit_hash"]})
+
+
+def test_s11j_rfc8785_canonical_bytes_match_jcs_basic_vector():
+    assert canonical_bytes({"b": 2, "a": 1}) == b'{"a":1,"b":2}'
+    assert canonical_bytes({"x": 1.0}) == b'{"x":1}'
+    with pytest.raises(TypeError, match="JCS_OBJECT_KEYS_MUST_BE_STRINGS"):
+        canonical_bytes({1: "not-a-string-key"})
+    record("S11j", "RFC 8785 basic JCS vectors match", "PASS",
+           kernel_calls=0, transition=make_transition())
+
+
+def test_s11k_transition_mutation_during_kernel_evaluation_blocks_effect():
+    transition = make_transition()
+
+    class MutatingBridge(CountingBridge):
+        def evaluate(self, payload):
+            decision = super().evaluate(payload)
+            transition.scope["source_realms"] = ["attacker-controlled"]
+            return decision
+
+    result, bridge, membrane = invoke(transition, bridge=MutatingBridge())
+    assert result.disposition == Disposition.HARD_VETO
+    assert result.kernel_decision == "EXECUTION_COMMIT_TRANSITION_MISMATCH"
+    assert result.effect_count == 0
+    assert bridge.calls == 1
+    assert len(membrane.execution_commits) == 1
+    record("S11k", "HARD_VETO; effect=0 on post-admission transition mutation",
+           result.kernel_decision, kernel_calls=bridge.calls, transition=transition)
