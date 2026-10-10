@@ -256,7 +256,7 @@ def test_s6a_reconcile_committed_converges_without_execution_or_permit_mutation(
     )
 
 
-def test_s6b_reconcile_non_execution_releases_effect_lock_independent_of_retry_annotation():
+def test_s6b_reconcile_non_execution_releases_effect_lock_without_admission_annotation():
     m, _ = _prepare_unknown(apply_effect=False)
     assert m.attempts["A1"].effect_observed is False
     before_effects = len(m.sink.effects)
@@ -455,6 +455,7 @@ def test_attestation_bound_to_other_lei_yields_none_and_preserves_state():
     result = m.reconcile(attempt_id="A1", evidence=mis_bound)
     assert result.non_execution_attested is None
     assert result.retry_eligible is None
+    assert m.evidence_registry[-1]["verification_reason"] == "BINDING_LEI_MISMATCH"
     assert m.attempts["A1"].state == AttemptState.UNKNOWN
     assert m.retry_eligible_for("L") is False
 
@@ -491,3 +492,34 @@ def test_idempotent_ack_of_failed_requires_verification_in_this_call():
     assert third.non_execution_attested is None
     assert third.retry_eligible is None
     assert m.attempts["A1"].state == AttemptState.FAILED
+
+
+def test_inconclusive_evidence_yields_none_and_preserves_state():
+    m, _ = _prepare_unknown(apply_effect=False)
+    result = m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-INC", "PENDING"))
+    assert result.kernel_decision == "RECONCILIATION_INCONCLUSIVE"
+    assert result.non_execution_attested is None
+    assert result.retry_eligible is None
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+
+
+def test_contradictory_outcome_after_verified_failure_yields_none_and_keeps_failed():
+    m, _ = _prepare_unknown(apply_effect=False)
+    first = m.reconcile(
+        attempt_id="A1",
+        evidence=_evidence("E-P2-CT1", "FAILED", non_execution_confirmed=True),
+    )
+    assert first.non_execution_attested is True
+    contra = m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-CT2", "COMMITTED"))
+    assert contra.non_execution_attested is None
+    assert contra.retry_eligible is None
+    assert m.attempts["A1"].state == AttemptState.FAILED
+
+
+def test_idempotent_ack_of_resolved_outcome_yields_none():
+    m, _ = _prepare_unknown(apply_effect=False)
+    m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-RA1", "COMMITTED"))
+    again = m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-RA2", "COMMITTED"))
+    assert again.client_state == "RESOLVED"
+    assert again.non_execution_attested is None
+    assert again.retry_eligible is None
