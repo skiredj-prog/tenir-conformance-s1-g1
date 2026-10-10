@@ -47,17 +47,17 @@ Reconciliation proves that the external operation succeeded despite expiry of th
 
 1. Submit A1 for LEI-L; the local effect may execute and A1 enters AWAITING_QUALIFICATION.
 2. After tau_K, A1 transitions to UNKNOWN and the qualification window is closed.
-3. Call **reconcile(attempt_id="A1", evidence=Evidence(status="COMMITTED", ...))** with authoritative, integrity-verified, fresh evidence bound to the exact attempt, LEI and nonce.
+3. Call **reconcile(attempt_id="A1", evidence=Evidence(status="COMMITTED", ...))** with authoritative, fresh evidence whose integrity is asserted by the upstream verifier, bound to the exact attempt, LEI and nonce.
 4. A1 transitions to RESOLVED, qualified becomes true, and effect_observed records the externally confirmed effect.
 5. Return RECONCILIATION_SUCCESS. EffectSink delta during reconcile is zero. The initial permit remains consumed and unchanged; no new permit is issued.
 
 ### S6b — Failure discovery and LEI unlock (UNKNOWN to FAILED)
 
-Reconciliation/failure adjudication establishes qualified evidence of non-execution. The LEI may then admit A2 only when retry eligibility is explicitly true.
+Reconciliation/failure adjudication establishes qualified evidence of non-execution. A FAILED outcome requires a non-execution attestation whose Ed25519 signature, signing key and attempt/LEI/nonce binding are verified by the membrane against a trust root supplied by the caller. The membrane does not verify that the target did not execute: `non_execution_confirmed` records the signer's declaration, which is authenticated but whose truth about the external world is not established. The admission guard reads the established fact (FAILED ∧ non_execution_confirmed ∧ ¬effect_observed), not a caller-supplied annotation. retry_eligible is not an admission input.
 
 1. Submit A1 with a lost request/receipt so its state becomes UNKNOWN and no local effect is observed.
-2. Call **reconcile(attempt_id="A1", evidence=Evidence(status="FAILED", non_execution_confirmed=True, ...), retry_eligible=False)** with authoritative, integrity-verified, fresh evidence bound to A1, its LEI and nonce.
-3. Reconciliation verifies the explicit non-execution attestation and transitions A1 to FAILED. The effect lock is released because non-execution is evidenced and no effect was observed; retry_eligible is recorded as metadata only.
+2. Call **reconcile(attempt_id="A1", evidence=Evidence(status="FAILED", non_execution_confirmed=True, ...), retry_eligible=False)** with authoritative, fresh evidence whose integrity is asserted by the upstream verifier, bound to A1, its LEI and nonce.
+3. Reconciliation verifies the signature and attempt binding of the explicit non-execution attestation and transitions A1 to FAILED; it does not independently establish the truth of the asserted external outcome. Authenticity, binding and external truth are distinct properties. The effect lock is released because the attested non-execution fact is established and no effect was observed; retry_eligible is recorded as metadata only.
 4. Admit A2 under a new attempt ID through normal admission. A2 receives its own permit. This remains true even with retry_eligible=False, because this flag is not the effect-lock condition.
 5. Measure EffectSink delta across the **reconcile** call separately from A2 admission. Reconciliation itself creates no effects, issues no permits and does not reuse A1's consumed permit.
 
@@ -102,10 +102,10 @@ Reconciliation/failure adjudication establishes qualified evidence of non-execut
 
 For empirical PASS, the harness must record:
 
-1. **Scenario Spec SHA-256:** Exact SHA-256 of this versioned file.
+1. **Scenario Spec SHA-256:** Exact SHA-256 of this versioned file, recorded as a secondary documentary fingerprint. The traceability reference is `git_blob_sha1` in `MANIFEST.json`.
 2. **LEI lock/map state:** Evidence that S6b releases the effect lock only after A1 becomes FAILED with **non_execution_confirmed=True** and **effect_observed=False**; a RESOLVED A1 remains locked. Record **retry_eligible** as metadata, not as the lock condition.
 3. **EffectSink delta:** **count_after - count_before == 0** measured over the **reconcile** or **declare_failed** call itself.
-4. **Permit registry log:** No new permit during reconciliation/failure adjudication; A1's consumed permit remains consumed and is not reused; A2 receives a separate permit only through normal admission when retry is eligible.
+4. **Permit registry log:** No new permit during reconciliation/failure adjudication; A1's consumed permit remains consumed and is not reused; A2 receives a separate permit only through normal admission, once the admission guard releases the LEI lock on the established non-execution fact.
 5. **Raw JSONL transition log:** Trace showing UNKNOWN to RESOLVED for S6a, and UNKNOWN to FAILED with `non_execution_confirmed=True` for S6b; `retry_eligible` is recorded as metadata.
 
 The harness must explicitly separate the measured observation/failure-adjudication window from the later A2 admission/execution window.
