@@ -523,3 +523,17 @@ def test_idempotent_ack_of_resolved_outcome_yields_none():
     assert again.client_state == "RESOLVED"
     assert again.non_execution_attested is None
     assert again.retry_eligible is None
+
+
+def test_tampered_signature_yields_none_and_preserves_state():
+    m, _ = _prepare_unknown(apply_effect=False)
+    ev = _evidence("E-P2-SIG", "FAILED", non_execution_confirmed=True)
+    sig = ev.attestation.signature
+    flipped = sig[:-1] + ("0" if sig[-1] != "0" else "1")
+    tampered = replace(ev, attestation=replace(ev.attestation, signature=flipped))
+    result = m.reconcile(attempt_id="A1", evidence=tampered)
+    assert m.evidence_registry[-1]["status"] == "unverified"
+    assert result.non_execution_attested is None
+    assert result.retry_eligible is None
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+    assert m.retry_eligible_for("L") is False
