@@ -285,5 +285,120 @@
       "commit": "be0bcd0a7d2bef696ef77070971946fa8a67c609",
       "note": "CI also passed after STATUS.md and MANIFEST.json documentation updates."
     }
-  }
+  },
+  "post_merge_validations": [
+    {
+      "source_commit": "c6ece00c3700c7c496933eaf98fc42363491ccc5",
+      "source_commit_subject": "S6b: admission guard reads established non-execution fact, not retry_eligible",
+      "branch": "main",
+      "ci_workflow": "Membrane CI (S1–S12 + Hypothesis Lab)",
+      "ci_run_number": 183,
+      "ci_run_id": 38173206841,
+      "ci_run_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/38173206841",
+      "conclusion": "success",
+      "scenario_specs_superseding": [
+        {
+          "id": "S6_specification",
+          "path": "scenarios/G0_S6_SUCCESSFUL_RECONCILIATION.md",
+          "git_blob_sha1": "9b9bd7b025a2b10b171a469df7aa05a072c0f695",
+          "previous_pin_retained": "42b90ffc7bcbad11f7dc8217389592028198962b"
+        }
+      ],
+      "evidence_artifacts": [
+        {
+          "scenario": "HYPOTHESIS_LAB",
+          "name": "hypothesis-lab-report",
+          "artifact_id": 11715275630,
+          "archive_sha256": "b708e733f6b4098d43ebc76ad50faa3f0e5578f2e17a7518771a03ffc6098b18",
+          "size_bytes": 1961,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11715275630/zip"
+        },
+        {
+          "scenario": "S1",
+          "name": "s1-evidence",
+          "artifact_id": 11715021028,
+          "archive_sha256": "bba56e1c1bb1ee4e33aeb2166c377724ce57e96152e1c0c5f027954de4e822c1",
+          "size_bytes": 4758,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11715021028/zip"
+        },
+        {
+          "scenario": "S10",
+          "name": "s10-evidence",
+          "artifact_id": 11714822269,
+          "archive_sha256": "e2f5ce87513243e6cd6b56dd6c2e322fd944b74e6192f27782a6c8d303f81210",
+          "size_bytes": 4048,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11714822269/zip"
+        },
+        {
+          "scenario": "S3",
+          "name": "s3-evidence",
+          "artifact_id": 11714786440,
+          "archive_sha256": "882d5efbcd985ae45d6c055821a878783379a3c8ac586ddf0d7ba6f3163f0002",
+          "size_bytes": 7846,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11714786440/zip"
+        },
+        {
+          "scenario": "S6",
+          "name": "s6-evidence",
+          "artifact_id": 11714547985,
+          "archive_sha256": "109ad87752364c7aba18dcc371e31f7f8ecb2a39b6bba74e1e53f56908236bab",
+          "size_bytes": 6434,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11714547985/zip"
+        },
+        {
+          "scenario": "S5",
+          "name": "s5-evidence",
+          "artifact_id": 11714512874,
+          "archive_sha256": "475019d3e19f6a68900bd39d846843dfef11972d53c76f24fc656143bb6d4d0e",
+          "size_bytes": 4199,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11714512874/zip"
+        },
+        {
+          "scenario": "S8",
+          "name": "s8-evidence",
+          "artifact_id": 11714498032,
+          "archive_sha256": "8bd7b634a3189c5f3687e947be4fc212cb39dd29b2e1fa6b11a81470f6fce376",
+          "size_bytes": 29727,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11714498032/zip"
+        },
+        {
+          "scenario": "S11",
+          "name": "s11-evidence",
+          "artifact_id": 11714487872,
+          "archive_sha256": "699b5a33f8ffe42f956462a4e1f2a82cdbc4a95975bce4863a8101ed5e4881d2",
+          "size_bytes": 6471,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11714487872/zip"
+        },
+        {
+          "scenario": "S4",
+          "name": "s4-evidence",
+          "artifact_id": 11714303680,
+          "archive_sha256": "7f259fcabc17bb5f4c1bdc54f6a026828327cccb285fbfa827307cd42d352119",
+          "size_bytes": 3636,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11714303680/zip"
+        },
+        {
+          "scenario": "S7",
+          "name": "s7-evidence",
+          "artifact_id": 11714274145,
+          "archive_sha256": "7a0df1b17c2beeb6e33c341e4164bad17a4a0ca0cd4c5736f90b71bcb8d6cbf6",
+          "size_bytes": 29346,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11714274145/zip"
+        },
+        {
+          "scenario": "S2",
+          "name": "s2-evidence",
+          "artifact_id": 11714229336,
+          "archive_sha256": "785fc3459d4876e55552d9e56c466fa9ea6ead5a1c238641f2993b28dc240113",
+          "size_bytes": 5444,
+          "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/artifacts/11714229336/zip"
+        }
+      ],
+      "limitations": [
+        "S12 tests run in this workflow but no S12 evidence artifact is uploaded.",
+        "The Hypothesis Lab step is continue-on-error: its verdict does not gate this run; its report artifact is archived.",
+        "Digests are the values GitHub reports for each artifact; size_bytes comes from the GitHub API."
+      ]
+    }
+  ]
 }
