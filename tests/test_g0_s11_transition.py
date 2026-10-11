@@ -391,3 +391,36 @@ def test_ct_r4_006_non_pass_cannot_cross_commit_no_effect():
            transition=veto_transition,
            details={"hold_effect_count": hold_result.effect_count,
                     "veto_effect_count": veto_result.effect_count})
+
+
+def test_ct_r4_002_grant_for_one_action_cannot_commit_another():
+    """CT-R4-002 (RFC-4 §5): grant issued for action_A, commit attempts action_B -> HARD_VETO / REJECT.
+
+    The grant is bound by the canonical hash of the admitted transition. A commit that
+    carries a different action_class must fail the hash check before the kernel is
+    called, and must produce no external effect. A control with the admitted transition
+    passes, so the refusal is caused by the action change alone.
+    """
+    from dataclasses import replace
+
+    grant = make_transition(postconditions=("effect-applied",))
+    grant_hash = canonical_hash(grant)
+
+    control, control_bridge, _ = invoke(grant, expected_transition_hash=grant_hash)
+    assert control.disposition == Disposition.PASS
+    assert control.effect_count == 1
+    assert control_bridge.calls == 1
+
+    commit = replace(grant, action_class="other")
+    mutated, mutated_bridge, _ = invoke(commit, expected_transition_hash=grant_hash)
+    assert mutated.disposition == Disposition.HARD_VETO
+    assert mutated.kernel_decision == "TRANSITION_HASH_CHANGED"
+    assert mutated.effect_count == 0
+    assert mutated_bridge.calls == 0
+
+    record("CT-R4-002", "PASS for admitted action; HARD_VETO and no effect for changed action",
+           f"{control.disposition.value}+{mutated.disposition.value}",
+           kernel_calls=control_bridge.calls + mutated_bridge.calls,
+           transition=commit,
+           details={"grant_hash": grant_hash, "control_effect_count": control.effect_count,
+                    "mutated_effect_count": mutated.effect_count})
