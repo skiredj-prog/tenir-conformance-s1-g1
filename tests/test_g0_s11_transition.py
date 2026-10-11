@@ -363,3 +363,31 @@ def test_s11k_transition_mutation_during_kernel_evaluation_blocks_effect():
     assert len(membrane.execution_commits) == 1
     record("S11k", "HARD_VETO; effect=0 on post-admission transition mutation",
            result.kernel_decision, kernel_calls=bridge.calls, transition=transition)
+
+
+def test_ct_r4_006_non_pass_cannot_cross_commit_no_effect():
+    """CT-R4-006 (RFC-4 §5): HOLD or HARD_VETO -> commit attempt -> REJECT, no external effect.
+
+    The transaction path is the commit attempt. For each non-PASS disposition the
+    external effect count must be zero and the kernel must not be called.
+    """
+    hold_transition = make_transition(postconditions=())
+    hold_result, hold_bridge, _ = invoke(hold_transition)
+    assert hold_result.disposition == Disposition.HOLD
+    assert hold_result.effect_count == 0
+    assert hold_bridge.calls == 0
+
+    veto_transition = make_transition(scope={"source_realms": ["A"]})
+    original_hash = canonical_hash(veto_transition)
+    veto_transition.scope["source_realms"] = ["B"]
+    veto_result, veto_bridge, _ = invoke(veto_transition, expected_transition_hash=original_hash)
+    assert veto_result.disposition == Disposition.HARD_VETO
+    assert veto_result.effect_count == 0
+    assert veto_bridge.calls == 0
+
+    record("CT-R4-006", "HOLD and HARD_VETO: effect_count=0, kernel_calls=0",
+           f"{hold_result.disposition.value}+{veto_result.disposition.value}",
+           kernel_calls=hold_bridge.calls + veto_bridge.calls,
+           transition=veto_transition,
+           details={"hold_effect_count": hold_result.effect_count,
+                    "veto_effect_count": veto_result.effect_count})
