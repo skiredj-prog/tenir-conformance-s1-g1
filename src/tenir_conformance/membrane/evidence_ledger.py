@@ -104,3 +104,29 @@ def load(path: str) -> EvidenceLedger:
     if data.get("format") != ENTRIES_FORMAT:
         raise ValueError(f"unsupported entries format: {data.get('format')!r}")
     return EvidenceLedger(entries=list(data["entries"]))
+
+
+
+def write_checkpoint(ledger: EvidenceLedger, directory: str, stamp: str) -> dict[str, Any]:
+    """Write one checkpoint: the private entries file and the public anchor file.
+
+    The entries file may contain signatures and trust-root snapshots, so it stays private.
+    Only the anchor file is meant for publication. A broken ledger is refused before any
+    file is written, and the stamp must be a calendar date (YYYY-MM-DD) so file names sort.
+    """
+    import json
+    import os
+    import re
+
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", stamp):
+        raise ValueError(f"stamp must be YYYY-MM-DD, got {stamp!r}")
+    published = anchor(ledger)
+    os.makedirs(directory, exist_ok=True)
+    base = f"{stamp}-{published['length']}"
+    entries_path = os.path.join(directory, f"{base}.entries.json")
+    anchor_path = os.path.join(directory, f"{base}.anchor.json")
+    dump(ledger, entries_path)
+    with open(anchor_path, "w", encoding="utf-8") as handle:
+        json.dump(published, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    return {"entries": entries_path, "anchor": anchor_path, **published}
