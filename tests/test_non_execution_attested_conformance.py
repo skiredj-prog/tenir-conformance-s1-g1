@@ -104,10 +104,11 @@ def test_nea_reconcile_failed_does_not_dispatch_or_issue_permit():
     result = m.reconcile(
         attempt_id=ATTEMPT,
         evidence=_failed_evidence(non_execution_confirmed=True),
-        retry_eligible=False,
     )
 
     assert result.client_state == "FAILED"
+    assert result.non_execution_attested is True
+    assert result.retry_eligible is None
     assert m.attempts[ATTEMPT].state == AttemptState.FAILED
     assert list(m.sink.effects) == effects_before
     assert set(m.permits) == permit_ids_before
@@ -137,6 +138,7 @@ def test_nea_requires_non_execution_confirmation_to_reach_failed():
     )
     assert m.attempts[ATTEMPT].state == AttemptState.UNKNOWN
     assert result.client_state != "FAILED"
+    assert result.non_execution_attested is None
     assert result.kernel_decision == "RECONCILIATION_NO_NON_EXECUTION_PROOF"
 
 
@@ -161,15 +163,15 @@ def test_nea_binding_mismatch_rejects_attestation_path():
     assert m.attempts[ATTEMPT].state == AttemptState.UNKNOWN
 
 
-def test_nea_retry_eligible_false_does_not_block_lei_after_failed_non_execution():
+def test_nea_failed_non_execution_releases_lei_without_retry_annotation():
     m, _ = _unknown_no_effect()
-    m.reconcile(
+    result = m.reconcile(
         attempt_id=ATTEMPT,
         evidence=_failed_evidence(non_execution_confirmed=True),
-        retry_eligible=False,
     )
     assert m.attempts[ATTEMPT].state == AttemptState.FAILED
-    assert m.attempts[ATTEMPT].retry_eligible is False
+    assert result.non_execution_attested is True
+    assert result.retry_eligible is None
     assert m.retry_eligible_for(LEI) is True
     second = m.admit_and_await_qualification(
         lei=LEI,
