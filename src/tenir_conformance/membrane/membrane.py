@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from copy import deepcopy
 import json
 import threading
 from dataclasses import dataclass, field, replace
@@ -15,6 +16,7 @@ from .attestation import NonExecutionAttestation, load_trust_root, verify_attest
 from .kernel_bridge import KernelBridge
 from .realm_policy import RealmPolicy
 from .tau_contract import TAUContract
+from .evidence_ledger import EvidenceLedger
 from .transition import Transition, canonical_bytes, canonical_hash, payload_sha256
 
 
@@ -225,6 +227,8 @@ class Membrane:
         self._evidence_registry: dict[str, str] = {}
         # Append-only record of all submitted S7 attestations, including rejects.
         self.evidence_registry: list[dict[str, Any]] = []
+        # Hash-chained shadow of evidence_registry (RFC-4 section 4.2, CT-R4-008).
+        self.evidence_ledger = EvidenceLedger()
         self.trust_root = load_trust_root(trust_root)
         # Fail closed: quarantine release requires an injected authority check.
         self.quarantine_release_authorizer = quarantine_release_authorizer
@@ -264,6 +268,24 @@ class Membrane:
             return reason
         return "SIGNATURE_INVALID"
 
+    def verify_evidence_registry(self) -> tuple[bool, int | None]:
+        """Check the chained ledger and that it still matches evidence_registry.
+
+        Returns (True, None) when intact; otherwise (False, first_bad_index).
+        Detects edits to the chain, and edits, insertions or deletions in either the
+        registry or the ledger.
+        """
+        ok, index = self.evidence_ledger.verify()
+        if not ok:
+            return False, index
+        ledger_records = [entry["record"] for entry in self.evidence_ledger.entries]
+        if len(self.evidence_registry) != len(ledger_records):
+            return False, min(len(self.evidence_registry), len(ledger_records))
+        for position, (registered, recorded) in enumerate(zip(self.evidence_registry, ledger_records)):
+            if canonical_bytes(registered) != canonical_bytes(recorded):
+                return False, position
+        return True, None
+
     def _verify_and_record_attestation(
         self, attempt: Attempt, attestation: NonExecutionAttestation | None
     ) -> tuple[bool, str]:
@@ -299,6 +321,7 @@ class Membrane:
             "trust_root_snapshot": self.trust_root,
             "received_at_ms": self.clock.now_ms,
         })
+        self.evidence_ledger.append(deepcopy(self.evidence_registry[-1]))
         if verified:
             self._log(
                 "NON_EXECUTION_ATTESTATION_VERIFIED",
