@@ -6,7 +6,7 @@ import copy
 import hashlib
 import json
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -181,6 +181,7 @@ class MembraneResult:
     timeout_event: bool = False
     retry_eligible: bool | None = None
     events: list[str] = field(default_factory=list)
+    non_execution_attested: bool | None = None
 
 
 class Membrane:
@@ -337,6 +338,10 @@ class Membrane:
             retry_eligible=False,
             events=[event["event"] for event in self.events],
         )
+
+    def _reject_reconcile_attestation(self, attempt: Attempt, reason: str) -> MembraneResult:
+        return replace(self._reject_non_execution_attestation(attempt, reason),
+                       retry_eligible=None, non_execution_attested=None)
 
     def _blocks_new_attempt(self, attempt: Attempt) -> bool:
         # A confirmed execution permanently locks the same logical operation.
@@ -1268,18 +1273,20 @@ class Membrane:
         *,
         attempt_id: str,
         evidence: Evidence,
-        retry_eligible: bool = True,
     ) -> MembraneResult:
         """Reconcile a past external outcome without executing or issuing permits.
 
         Evidence integrity/source authority are upstream-verifier assertions. For
         FAILED, non_execution_confirmed must explicitly attest that no external
         effect occurred. This method never invokes the kernel or EffectSink.
+
+        Result fields: retry_eligible is always None (no admission decision on this
+        path). non_execution_attested is True only when the attestation was verified in
+        this call and the attempt is qualified as FAILED; otherwise None. It attests the
+        processing of the attestation, not the external truth of non-execution.
         """
         if attempt_id not in self.attempts:
             raise KeyError(attempt_id)
-        if not isinstance(retry_eligible, bool):
-            raise TypeError("retry_eligible must be a bool annotation")
 
         attempt = self.attempts[attempt_id]
         batch = self._validate_evidence_batch(attempt, (evidence,))
@@ -1293,7 +1300,7 @@ class Membrane:
             disp, state = self._client_projection(attempt)
             return MembraneResult(disp, state, attempt.receipt_observed,
                 len(self.sink.effects), 0.0, "RECONCILIATION_INCONCLUSIVE", False,
-                timeout_event=attempt.timeout_fired, retry_eligible=attempt.retry_eligible,
+                timeout_event=attempt.timeout_fired, retry_eligible=None, non_execution_attested=None,
                 events=[event["event"] for event in self.events])
 
         if outcome == "FAILED":
@@ -1307,19 +1314,19 @@ class Membrane:
                 return MembraneResult(disp, state, attempt.receipt_observed,
                     len(self.sink.effects), 0.0,
                     "RECONCILIATION_NO_NON_EXECUTION_PROOF", False,
-                    timeout_event=attempt.timeout_fired, retry_eligible=False,
+                    timeout_event=attempt.timeout_fired, retry_eligible=None, non_execution_attested=None,
                     events=[event["event"] for event in self.events])
 
             verified, verification_reason = self._verify_and_record_attestation(
                 attempt, item.attestation
             )
             if not verified:
-                return self._reject_non_execution_attestation(attempt, verification_reason)
+                return self._reject_reconcile_attestation(attempt, verification_reason)
             if item.non_execution_confirmed is not True:
                 self._log("RECONCILIATION_ATTESTATION_MISMATCH", lei=attempt.lei,
                           attempt_id=attempt_id, evidence_id=item.evidence_id,
                           attestation_id=item.attestation.attestation_id if item.attestation else None)
-                return self._reject_non_execution_attestation(attempt, "attestation_evidence_mismatch")
+                return self._reject_reconcile_attestation(attempt, "attestation_evidence_mismatch")
 
         # Do not overwrite terminal outcomes. Matching evidence is idempotent;
         # an opposite outcome fails closed without mutating terminal state.
@@ -1339,16 +1346,16 @@ class Membrane:
                 disp, state = self._client_projection(attempt)
                 return MembraneResult(disp, state, attempt.receipt_observed,
                     len(self.sink.effects), 0.0, "RECONCILIATION_IDEMPOTENT_ACK", False,
-                    timeout_event=attempt.timeout_fired, retry_eligible=attempt.retry_eligible,
+                    timeout_event=attempt.timeout_fired, retry_eligible=None, non_execution_attested=True if outcome == "FAILED" else None,
                     events=[event["event"] for event in self.events])
             # Route contradictions against an already terminal outcome through S5;
             # preserve the terminal state and fail closed under governance quarantine.
-            return self._record_evidence_contradiction(attempt, [{
+            return replace(self._record_evidence_contradiction(attempt, [{
                 "kind": "TerminalOutcomeConflict",
                 "evidence_ids": [item.evidence_id],
                 "left_status": attempt.state.value,
                 "right_status": outcome,
-            }])
+            }]), retry_eligible=None, non_execution_attested=None)
 
         if attempt.state != AttemptState.UNKNOWN:
             self._log("RECONCILIATION_REJECTED_BAD_STATE", lei=attempt.lei,
@@ -1357,14 +1364,13 @@ class Membrane:
             disp, state = self._client_projection(attempt)
             return MembraneResult(Disposition.HOLD, state, attempt.receipt_observed,
                 len(self.sink.effects), 0.0, "RECONCILIATION_BAD_STATE", False,
-                timeout_event=attempt.timeout_fired, retry_eligible=False,
+                timeout_event=attempt.timeout_fired, retry_eligible=None, non_execution_attested=None,
                 events=[event["event"] for event in self.events])
 
         if outcome == "COMMITTED":
             attempt.state = AttemptState.RESOLVED
             attempt.effect_observed = True  # confirmed by the bound external evidence
             attempt.qualified = True
-            attempt.retry_eligible = False
             attempt.failure_reason = None
             self._log("RECONCILIATION_SUCCESS", lei=attempt.lei,
                       attempt_id=attempt_id, evidence_id=item.evidence_id,
@@ -1372,7 +1378,7 @@ class Membrane:
             return MembraneResult(Disposition.PASS, AttemptState.RESOLVED.value,
                 attempt.receipt_observed, len(self.sink.effects), 0.0,
                 "RECONCILIATION_SUCCESS", False,
-                timeout_event=attempt.timeout_fired, retry_eligible=False,
+                timeout_event=attempt.timeout_fired, retry_eligible=None, non_execution_attested=None,
                 events=[event["event"] for event in self.events])
 
         if attempt.effect_observed:
@@ -1382,23 +1388,22 @@ class Membrane:
             return MembraneResult(Disposition.HOLD, self._client_projection(attempt)[1],
                 attempt.receipt_observed, len(self.sink.effects), 0.0,
                 "RECONCILIATION_CONTRADICTS_OBSERVED_EFFECT", False,
-                timeout_event=attempt.timeout_fired, retry_eligible=False,
+                timeout_event=attempt.timeout_fired, retry_eligible=None, non_execution_attested=None,
                 events=[event["event"] for event in self.events])
 
         attempt.state = AttemptState.FAILED
 
         attempt.non_execution_confirmed = True
         attempt.qualified = True
-        attempt.retry_eligible = retry_eligible  # audit/policy annotation only
         attempt.failure_reason = "RECONCILIATION_CONFIRMED_NON_EXECUTION"
         self._log("RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION",
                   lei=attempt.lei, attempt_id=attempt_id,
                   evidence_id=item.evidence_id, outcome=outcome,
-                  non_execution_confirmed=True, retry_eligible=retry_eligible)
+                  non_execution_confirmed=True, non_execution_attested=True)
         return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value,
             attempt.receipt_observed, len(self.sink.effects), 0.0,
             "RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION", False,
-            timeout_event=attempt.timeout_fired, retry_eligible=retry_eligible,
+            timeout_event=attempt.timeout_fired, retry_eligible=None, non_execution_attested=True,
             events=[event["event"] for event in self.events])
 
     def resolve_governance_quarantine(

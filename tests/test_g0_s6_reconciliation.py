@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -255,7 +256,7 @@ def test_s6a_reconcile_committed_converges_without_execution_or_permit_mutation(
     )
 
 
-def test_s6b_reconcile_non_execution_releases_effect_lock_independent_of_retry_annotation():
+def test_s6b_reconcile_non_execution_releases_effect_lock_without_admission_annotation():
     m, _ = _prepare_unknown(apply_effect=False)
     assert m.attempts["A1"].effect_observed is False
     before_effects = len(m.sink.effects)
@@ -269,7 +270,6 @@ def test_s6b_reconcile_non_execution_releases_effect_lock_independent_of_retry_a
             "FAILED",
             non_execution_confirmed=True,
         ),
-        retry_eligible=False,
     )
     effects_after_reconcile = len(m.sink.effects)
     permits_after_reconcile = _permit_snapshot(m)
@@ -279,14 +279,15 @@ def test_s6b_reconcile_non_execution_releases_effect_lock_independent_of_retry_a
     assert m.attempts["A1"].state == AttemptState.FAILED
     assert m.attempts["A1"].qualified is True
     assert m.attempts["A1"].effect_observed is False
-    assert m.attempts["A1"].retry_eligible is False
+    assert result.non_execution_attested is True
+    assert result.retry_eligible is None
     assert len(m.sink.effects) == before_effects
     assert _permit_snapshot(m) == permits_before
     assert m.permits["A1"].consumed is a1_permit_consumed_before is True
     assert m.retry_eligible_for("L") is True
     assert "RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION" in [e["event"] for e in m.events]
 
-    # A2 gets a distinct permit through normal admission even though retry_eligible is false.
+    # A2 gets a distinct permit through normal admission; the reconcile result carries no admission decision.
     a2 = m.admit_and_await_qualification(
         lei="L", attempt_id="A2", payload=PAYLOAD, apply_effect=False, nonce="n-s6-a2"
     )
@@ -304,7 +305,7 @@ def test_s6b_reconcile_non_execution_releases_effect_lock_independent_of_retry_a
         "A3_effect_delta_zero": effects_after_reconcile - before_effects == 0,
         "A4_canonical_event": "RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION" in [e["event"] for e in m.events],
         "A5_permit_isolation": permits_after_reconcile == permits_before and permits_after_reconcile["A1"]["consumed"],
-        "A6_failed_no_effect_unlocks_even_retry_annotation_false": m.attempts["A1"].retry_eligible is False and "A2" in m.attempts,
+        "A6_failed_no_effect_unlocks_without_admission_decision_in_result": result.non_execution_attested is True and "A2" in m.attempts,
         "A7_claim_scope": "tested sequential interleavings only",
     }
     assert all(value is True for key, value in assertions.items() if key != "A7_claim_scope")
@@ -419,3 +420,120 @@ def test_s6_spec_and_scenario_are_versioned_and_hashed():
     assert scenario["assertions"] == ["A1", "A2", "A3", "A4", "A5", "A6", "A7"]
     assert "non_execution_confirmed" in scenario["subcases"]["S6b"]["expected"]
     assert "retry_eligible is annotation only" in scenario["subcases"]["S6b"]["expected"]
+
+
+# --- Pass 2 contract: non_execution_attested and retry_eligible=None on reconcile results ---
+
+def test_reconcile_has_no_retry_eligible_parameter():
+    m, _ = _prepare_unknown(apply_effect=False)
+    with pytest.raises(TypeError):
+        m.reconcile(
+            attempt_id="A1",
+            evidence=_evidence("E-P2-SIG", "FAILED", non_execution_confirmed=True),
+            retry_eligible=True,
+        )
+
+
+def test_verified_failed_transition_sets_non_execution_attested_true_and_retry_none():
+    m, _ = _prepare_unknown(apply_effect=False)
+    result = m.reconcile(
+        attempt_id="A1",
+        evidence=_evidence("E-P2-OK", "FAILED", non_execution_confirmed=True),
+    )
+    assert m.attempts["A1"].state == AttemptState.FAILED
+    assert result.non_execution_attested is True
+    assert result.retry_eligible is None
+
+
+def test_attestation_bound_to_other_lei_yields_none_and_preserves_state():
+    m, _ = _prepare_unknown(apply_effect=False)
+    ev = _evidence("E-P2-BIND", "FAILED", non_execution_confirmed=True)
+    mis_bound = replace(ev, attestation=sign_attestation(
+        attestation_id="AT-P2-BIND", attempt_id="A1", lei="OTHER",
+        nonce="n-s6", non_execution_confirmed=True,
+    ))
+    result = m.reconcile(attempt_id="A1", evidence=mis_bound)
+    assert result.non_execution_attested is None
+    assert result.retry_eligible is None
+    assert m.evidence_registry[-1]["verification_reason"] == "BINDING_LEI_MISMATCH"
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+    assert m.retry_eligible_for("L") is False
+
+
+def test_missing_attestation_yields_none_and_preserves_state():
+    m, _ = _prepare_unknown(apply_effect=False)
+    ev = replace(_evidence("E-P2-NOATT", "FAILED", non_execution_confirmed=True), attestation=None)
+    result = m.reconcile(attempt_id="A1", evidence=ev)
+    assert result.non_execution_attested is None
+    assert result.retry_eligible is None
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+
+
+def test_committed_outcome_yields_none_for_non_execution_attested():
+    m, _ = _prepare_unknown(apply_effect=False)
+    result = m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-COM", "COMMITTED"))
+    assert m.attempts["A1"].state == AttemptState.RESOLVED
+    assert result.non_execution_attested is None
+    assert result.retry_eligible is None
+
+
+def test_idempotent_ack_of_failed_requires_verification_in_this_call():
+    m, _ = _prepare_unknown(apply_effect=False)
+    m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-ACK1", "FAILED", non_execution_confirmed=True))
+
+    again = m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-ACK2", "FAILED", non_execution_confirmed=True))
+    assert again.client_state == "FAILED"
+    assert again.non_execution_attested is True
+    assert again.retry_eligible is None
+
+    # The historical FAILED state alone does not justify True: no verified attestation in this call.
+    unattested = replace(_evidence("E-P2-ACK3", "FAILED", non_execution_confirmed=True), attestation=None)
+    third = m.reconcile(attempt_id="A1", evidence=unattested)
+    assert third.non_execution_attested is None
+    assert third.retry_eligible is None
+    assert m.attempts["A1"].state == AttemptState.FAILED
+
+
+def test_inconclusive_evidence_yields_none_and_preserves_state():
+    m, _ = _prepare_unknown(apply_effect=False)
+    result = m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-INC", "PENDING"))
+    assert result.kernel_decision == "RECONCILIATION_INCONCLUSIVE"
+    assert result.non_execution_attested is None
+    assert result.retry_eligible is None
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+
+
+def test_contradictory_outcome_after_verified_failure_yields_none_and_keeps_failed():
+    m, _ = _prepare_unknown(apply_effect=False)
+    first = m.reconcile(
+        attempt_id="A1",
+        evidence=_evidence("E-P2-CT1", "FAILED", non_execution_confirmed=True),
+    )
+    assert first.non_execution_attested is True
+    contra = m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-CT2", "COMMITTED"))
+    assert contra.non_execution_attested is None
+    assert contra.retry_eligible is None
+    assert m.attempts["A1"].state == AttemptState.FAILED
+
+
+def test_idempotent_ack_of_resolved_outcome_yields_none():
+    m, _ = _prepare_unknown(apply_effect=False)
+    m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-RA1", "COMMITTED"))
+    again = m.reconcile(attempt_id="A1", evidence=_evidence("E-P2-RA2", "COMMITTED"))
+    assert again.client_state == "RESOLVED"
+    assert again.non_execution_attested is None
+    assert again.retry_eligible is None
+
+
+def test_tampered_signature_yields_none_and_preserves_state():
+    m, _ = _prepare_unknown(apply_effect=False)
+    ev = _evidence("E-P2-SIG", "FAILED", non_execution_confirmed=True)
+    sig = ev.attestation.signature
+    flipped = sig[:-1] + ("0" if sig[-1] != "0" else "1")
+    tampered = replace(ev, attestation=replace(ev.attestation, signature=flipped))
+    result = m.reconcile(attempt_id="A1", evidence=tampered)
+    assert m.evidence_registry[-1]["status"] == "unverified"
+    assert result.non_execution_attested is None
+    assert result.retry_eligible is None
+    assert m.attempts["A1"].state == AttemptState.UNKNOWN
+    assert m.retry_eligible_for("L") is False
