@@ -70,7 +70,16 @@ jobs:
         run: python -m pytest tests/test_s12_nd1_realm_divergence.py -v --tb=short
 
       - name: Run S12 cross-Realm conformance cases (S12a, b, d–h; S12c is ND-1)
-        run: python -m pytest tests/test_s12_cross_realm_conformance.py -v --tb=short
+        run: |
+          mkdir -p artifacts/s12
+          python -m pytest tests/test_s12_cross_realm_conformance.py -v --tb=short --junitxml=artifacts/s12/s12-cross-realm-junit.xml
+
+      - name: Upload S12 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: s12-evidence
+          path: artifacts/s12/
+          if-no-files-found: error
 
       - name: Run E2 bounded state exploration (all four worlds; no historical count gate)
         run: |
