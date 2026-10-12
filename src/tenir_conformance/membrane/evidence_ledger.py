@@ -80,3 +80,27 @@ def verify_against_anchor(ledger: EvidenceLedger, published: Mapping[str, Any]) 
     if published.get("format") != ANCHOR_FORMAT:
         raise ValueError(f"unsupported anchor format: {published.get('format')!r}")
     return ledger.verify(expected_head=published["head"])
+
+
+ENTRIES_FORMAT = "evidence-ledger-entries/v1"
+
+
+def dump(ledger: EvidenceLedger, path: str) -> None:
+    """Write the ledger entries to a JSON file. The file is a checkpoint input, not an anchor."""
+    import json
+
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump({"format": ENTRIES_FORMAT, "entries": ledger.entries},
+                  handle, ensure_ascii=False, sort_keys=True, indent=2)
+        handle.write("\n")
+
+
+def load(path: str) -> EvidenceLedger:
+    """Read a ledger from a JSON file written by dump(). Does not verify the chain."""
+    import json
+
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+    if data.get("format") != ENTRIES_FORMAT:
+        raise ValueError(f"unsupported entries format: {data.get('format')!r}")
+    return EvidenceLedger(entries=list(data["entries"]))
