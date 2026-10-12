@@ -54,3 +54,29 @@ class EvidenceLedger:
         if expected_head is not None and prev != expected_head:
             return False, len(self.entries)
         return True, None
+
+
+ANCHOR_FORMAT = "evidence-ledger-anchor/v1"
+
+
+def anchor(ledger: EvidenceLedger) -> dict[str, Any]:
+    """Return a publishable anchor for an intact ledger.
+
+    Refuses to anchor a ledger whose chain does not verify: publishing a broken head
+    would make a corrupted ledger look authoritative.
+    """
+    ok, index = ledger.verify()
+    if not ok:
+        raise ValueError(f"ledger is not intact at position {index}; refusing to anchor")
+    return {"format": ANCHOR_FORMAT, "head": ledger.head(), "length": len(ledger.entries)}
+
+
+def verify_against_anchor(ledger: EvidenceLedger, published: Mapping[str, Any]) -> tuple[bool, int | None]:
+    """Verify a ledger against a previously published anchor.
+
+    Detects tampering, truncation (the anchored head is no longer reached), and extension
+    (the ledger has moved past the anchored head).
+    """
+    if published.get("format") != ANCHOR_FORMAT:
+        raise ValueError(f"unsupported anchor format: {published.get('format')!r}")
+    return ledger.verify(expected_head=published["head"])
