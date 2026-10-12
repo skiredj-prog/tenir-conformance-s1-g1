@@ -210,13 +210,20 @@
     "ci_gate": false
   },
   "current_e2_baseline": {
-    "source_commit": "26b9466ec666de18e5acaac4ce1fac0135cadd9e",
+    "status": "CURRENT",
+    "source_commit": "d42499bc8685c03612893d711598fe641ab31d44",
     "depth": 8,
     "workflow_run": {
-      "run_number": 150,
-      "run_id": 37962357582,
-      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962357582",
+      "workflow": "Membrane CI (S1–S12 + Hypothesis Lab)",
+      "run_number": 211,
+      "run_id": 38198777951,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/38198777951",
       "result": "success"
+    },
+    "artifact": {
+      "name": "e2-current-four-worlds",
+      "id": 11724353358,
+      "digest": "sha256:82d3d53efb3a6a3a5ad6aa4c44b92532f5fbfddf0909f8f1f1f02748c0682970"
     },
     "worlds": {
       "honest": {
@@ -241,7 +248,7 @@
       }
     },
     "historical_count_gate": false,
-    "evidence_path": "experiments/e1_e2/E2_BASELINES.md"
+    "evidence_path": "CI artifact e2-current-four-worlds of run 38198777951; run-info.txt records commit and run id"
   },
   "latest_cross_realm_conformance": {
     "pull_request": 24,
@@ -400,5 +407,47 @@
         "Digests are the values GitHub reports for each artifact; size_bytes comes from the GitHub API."
       ]
     }
-  ]
+  ],
+  "previous_current_e2_baseline": {
+    "source_commit": "26b9466ec666de18e5acaac4ce1fac0135cadd9e",
+    "depth": 8,
+    "workflow_run": {
+      "run_number": 150,
+      "run_id": 37962357582,
+      "url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37962357582",
+      "result": "success"
+    },
+    "worlds": {
+      "honest": {
+        "distinct_states": 675,
+        "transitions_checked": 25297,
+        "violations": 0
+      },
+      "false_attest": {
+        "distinct_states": 1539,
+        "transitions_checked": 56111,
+        "violations": 0
+      },
+      "hidden_honest": {
+        "distinct_states": 1059,
+        "transitions_checked": 41807,
+        "violations": 0
+      },
+      "adversarial": {
+        "distinct_states": 2307,
+        "transitions_checked": 88567,
+        "violations": 0
+      }
+    },
+    "historical_count_gate": false,
+    "evidence_path": "experiments/e1_e2/E2_BASELINES.md",
+    "status": "SUPERSEDED"
+  },
+  "e2_diagnostic_reference": {
+    "status": "REFERENCE_DIAGNOSTIC_BRANCH",
+    "branch_family": "diagnostic/e2-*",
+    "tested_commit": "b18e205cc170ea7b0540dbc9f5c4d6b36d15b77a",
+    "workflow_run_id": 37943755826,
+    "note": "Commit is on investigation branches, not on main. Kept for traceability; not a current baseline."
+  }
 }

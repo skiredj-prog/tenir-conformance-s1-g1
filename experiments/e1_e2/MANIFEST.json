@@ -132,7 +132,7 @@
   },
   "e2_baseline_v2": {
     "script_sha256": "e718d3e281c03ecf6409d7d39c0bdbf4a3b510d9fb47180f9016d27011e8a8d9",
-    "status": "CURRENT",
+    "status": "REFERENCE_DIAGNOSTIC_BRANCH",
     "tested_commit": "b18e205cc170ea7b0540dbc9f5c4d6b36d15b77a",
     "workflow_run_id": 37943755826,
     "workflow_run_url": "https://github.com/skiredj-prog/tenir-conformance-s1-g1/actions/runs/37943755826",
@@ -143,6 +143,6 @@
       "hidden_honest": null,
       "adversarial": null
     },
-    "note": "New baseline. adversarial count pending at depth 6. Counterexample traced separately in test_g0_s7 and test_g0_s11_transition."
+    "note": "Current baseline is recorded on main in the root MANIFEST.json (current_e2_baseline)."
   }
 }
