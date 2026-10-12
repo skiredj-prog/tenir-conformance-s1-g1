@@ -75,13 +75,14 @@ jobs:
       - name: Run E2 bounded state exploration (all four worlds; no historical count gate)
         run: |
           set -euo pipefail
+          mkdir -p artifacts/e2
           for world in honest false_attest hidden_honest adversarial; do
-            python experiments/e1_e2/e2_explore.py --depth 8 --world "$world" --out "/tmp/e2-$world.json"
+            python experiments/e1_e2/e2_explore.py --depth 8 --world "$world" --out "artifacts/e2/e2-$world.json"
           done
           python - <<'PY'
           import json
           for world in ("honest", "false_attest", "hidden_honest", "adversarial"):
-              with open(f"/tmp/e2-{world}.json", encoding="utf-8") as f:
+              with open(f"artifacts/e2/e2-{world}.json", encoding="utf-8") as f:
                   result = json.load(f)
               actual = result["distinct_states"]
               violations = result["violations"]
@@ -90,6 +91,18 @@ jobs:
                   raise SystemExit(f"INVARIANT VIOLATION in {world}: {violations}")
           print("E2 completed in all four worlds with no invariant violations.")
           PY
+
+      - name: Record E2 run identity
+        run: |
+          printf 'commit=%s\nrun_id=%s\nrun_number=%s\nworkflow=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_NUMBER" "$GITHUB_WORKFLOW" > artifacts/e2/run-info.txt
+          cat artifacts/e2/run-info.txt
+
+      - name: Upload E2 four-world outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2-current-four-worlds
+          path: artifacts/e2/
+          if-no-files-found: error
 
       - name: Generate S1 evidence artifacts
         run: PYTHONPATH=src python tools/run_s1.py
