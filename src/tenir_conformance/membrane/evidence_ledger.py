@@ -125,6 +125,10 @@ def write_checkpoint(ledger: EvidenceLedger, directory: str, stamp: str) -> dict
     base = f"{stamp}-{published['length']}"
     entries_path = os.path.join(directory, f"{base}.entries.json")
     anchor_path = os.path.join(directory, f"{base}.anchor.json")
+    # A restarted membrane starts a new chain, which can reuse a name. Never overwrite.
+    for path in (entries_path, anchor_path):
+        if os.path.exists(path):
+            raise FileExistsError(f"checkpoint already exists: {path}")
     dump(ledger, entries_path)
     with open(anchor_path, "w", encoding="utf-8") as handle:
         json.dump(published, handle, indent=2, sort_keys=True)
