@@ -1,0 +1,22 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.8, pytest-9.1.1, pluggy-1.6.0 -- /usr/local/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace/.tmp/tenir-conformance-s1-g1
+configfile: pyproject.toml
+plugins: anyio-4.15.1, dash-4.4.0, Faker-40.28.1, langsmith-0.14.4, platformdirs-4.12.3
+collecting ... collected 12 items
+
+tests/test_consensus_multi_process.py::test_same_key_two_processes_one_winner PASSED [  8%]
+tests/test_consensus_multi_process.py::test_i8_invariant_holds_across_processes PASSED [ 16%]
+tests/test_consensus_multi_process.py::test_cross_process_reserve_commit_release PASSED [ 25%]
+tests/test_consensus_multi_process.py::test_concurrent_reservations_do_not_exceed_capacity PASSED [ 33%]
+tests/test_consensus_multi_process.py::test_concurrent_reserve_then_commit_i8 PASSED [ 41%]
+tests/test_consensus_liveness.py::test_operations_terminate_within_t_max PASSED [ 50%]
+tests/test_consensus_liveness.py::test_concurrent_operations_all_terminate PASSED [ 58%]
+tests/test_consensus_liveness.py::test_reconciliation_terminates PASSED  [ 66%]
+tests/test_consensus_liveness.py::test_insufficient_budget_returns_immediately PASSED [ 75%]
+tests/test_consensus_liveness.py::test_max_latency_under_concurrent_load PASSED [ 83%]
+tests/test_consensus_liveness.py::test_release_terminates_and_restores_budget PASSED [ 91%]
+tests/test_consensus_liveness.py::test_duplicate_key_reserve_terminates PASSED [100%]
+
+============================== 12 passed in 2.75s ==============================
