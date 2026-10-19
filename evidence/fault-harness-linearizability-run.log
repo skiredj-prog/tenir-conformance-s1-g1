@@ -1,0 +1,52 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.8, pytest-9.1.1, pluggy-1.6.0 -- /usr/local/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace/.tmp/tenir-conformance-s1-g1
+configfile: pyproject.toml
+plugins: anyio-4.15.1, dash-4.4.0, Faker-40.28.1, langsmith-0.14.4, platformdirs-4.12.3
+collecting ... collected 42 items
+
+tests/test_fault_harness.py::TestCrashStopRecovery::test_crash_mid_reserve_commit_then_restart_state_consistent PASSED [  2%]
+tests/test_fault_harness.py::TestCrashStopRecovery::test_crash_before_reserve_leaves_clean_state PASSED [  4%]
+tests/test_fault_harness.py::TestI8AfterCrash::test_no_budget_leak_after_crash PASSED [  7%]
+tests/test_fault_harness.py::TestI8AfterCrash::test_i8_holds_across_multiple_crash_cycles PASSED [  9%]
+tests/test_fault_harness.py::TestDurableStateVisibility::test_reservation_visible_after_restart PASSED [ 11%]
+tests/test_fault_harness.py::TestDurableStateVisibility::test_multiple_processes_see_same_durable_state PASSED [ 14%]
+tests/test_fault_harness.py::TestPartitionSimulation::test_lock_contention_serializes_operations PASSED [ 16%]
+tests/test_fault_harness.py::TestPartitionSimulation::test_concurrent_reserves_do_not_exceed_capacity PASSED [ 19%]
+tests/test_fault_harness.py::TestByzantineRejection::test_invalid_operations_rejected PASSED [ 21%]
+tests/test_fault_harness.py::TestByzantineRejection::test_byzantine_input_does_not_corrupt_state PASSED [ 23%]
+tests/test_fault_harness.py::TestNoRecommitAfterCrash::test_commit_is_idempotent_after_crash PASSED [ 26%]
+tests/test_fault_harness.py::TestNoRecommitAfterCrash::test_committed_budget_not_double_counted PASSED [ 28%]
+tests/test_linearizability_validation.py::TestValidSequentialHistory::test_simple_reserve_commit_sequential PASSED [ 30%]
+tests/test_linearizability_validation.py::TestValidSequentialHistory::test_reserve_release_sequential PASSED [ 33%]
+tests/test_linearizability_validation.py::TestValidSequentialHistory::test_multiple_reserves_within_capacity PASSED [ 35%]
+tests/test_linearizability_validation.py::TestValidSequentialHistory::test_reserve_then_insufficient PASSED [ 38%]
+tests/test_linearizability_validation.py::TestValidSequentialHistory::test_full_reserve_commit_release_cycle PASSED [ 40%]
+tests/test_linearizability_validation.py::TestValidSequentialHistory::test_idempotent_reserve_same_key PASSED [ 42%]
+tests/test_linearizability_validation.py::TestValidSequentialHistory::test_duplicate_key_different_amount PASSED [ 45%]
+tests/test_linearizability_validation.py::TestI8ViolationNotLinearizable::test_two_reserves_exceeding_capacity_both_succeed PASSED [ 47%]
+tests/test_linearizability_validation.py::TestI8ViolationNotLinearizable::test_three_reserves_all_exceeding_capacity PASSED [ 50%]
+tests/test_linearizability_validation.py::TestI8ViolationNotLinearizable::test_reserve_exceeding_capacity_returns_reserved PASSED [ 52%]
+tests/test_linearizability_validation.py::TestI8ViolationNotLinearizable::test_commit_nonexistent_returns_committed PASSED [ 54%]
+tests/test_linearizability_validation.py::TestI8ViolationNotLinearizable::test_double_commit_returns_committed_twice PASSED [ 57%]
+tests/test_linearizability_validation.py::TestConcurrentOperations::test_concurrent_reserves_within_capacity PASSED [ 59%]
+tests/test_linearizability_validation.py::TestConcurrentOperations::test_concurrent_reserve_and_commit_different_clients PASSED [ 61%]
+tests/test_linearizability_validation.py::TestConcurrentOperations::test_concurrent_reserve_commit_release PASSED [ 64%]
+tests/test_linearizability_validation.py::TestConcurrentOperations::test_concurrent_reserves_at_capacity_boundary PASSED [ 66%]
+tests/test_linearizability_validation.py::TestConcurrentOperations::test_concurrent_reserve_one_succeeds_one_fails PASSED [ 69%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_matches_backend_reserve PASSED [ 71%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_matches_backend_reserve_commit PASSED [ 73%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_matches_backend_reserve_release PASSED [ 76%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_matches_backend_insufficient_budget PASSED [ 78%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_matches_backend_already_committed PASSED [ 80%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_matches_backend_not_found PASSED [ 83%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_matches_backend_idempotent_reserve PASSED [ 85%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_matches_backend_duplicate_key PASSED [ 88%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_matches_backend_full_cycle PASSED [ 90%]
+tests/test_linearizability_validation.py::TestSequentialSpecMatchesBackend::test_spec_models_get_state PASSED [ 92%]
+tests/test_linearizability_validation.py::TestLinearizationOutput::test_linearization_is_valid_sequence PASSED [ 95%]
+tests/test_linearizability_validation.py::TestLinearizationOutput::test_empty_history_is_linearizable PASSED [ 97%]
+tests/test_linearizability_validation.py::TestLinearizationOutput::test_single_reserve_linearization PASSED [100%]
+
+============================= 42 passed in 12.06s ==============================
