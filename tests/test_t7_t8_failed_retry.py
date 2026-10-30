@@ -108,10 +108,9 @@ def test_t8_failed_retry_eligible_allows_new_attempt_same_lei():
     assert m.attempts["A"].state == AttemptState.FAILED
 
 
-def test_t8_retry_eligibility_is_annotation_not_effect_lock():
-    """FAILED without observed effect releases the LEI regardless of retry_eligible."""
-    clock = FakeClock(now_ms=1_000_000)
-    m = _m(clock)
+def test_t8_false_keeps_lei_locked_even_after_verified_non_execution():
+    """Qualified non-execution alone never overrides explicit retry prohibition."""
+    m = _m()
     m.process_transaction(
         nonce="n-t7t8-process_transaction-05",
         lei="L", attempt_id="A", payload=PAYLOAD, request_lost=True
@@ -125,12 +124,15 @@ def test_t8_retry_eligibility_is_annotation_not_effect_lock():
         retry_eligible=False,
     )
     assert m.attempts["A"].state == AttemptState.FAILED
-    assert m.attempts["A"].effect_observed is False
+    assert m.attempts["A"].non_execution_confirmed is True
     assert m.attempts["A"].retry_eligible is False
-    assert m.retry_eligible_for("L") is True
-    second = m.retry(nonce="n-t7t8-retry-01", lei="L", attempt_id="A-retry", payload=PAYLOAD)
-    assert "A-retry" in m.attempts
-    assert second.kernel_decision != "NOT_EVALUATED"
+    assert m.retry_eligible_for("L") is False
+    second = m.retry(nonce="n-t7t8-retry-01", lei="L",
+                     attempt_id="A-retry", payload=PAYLOAD)
+    assert second.disposition.value == "HOLD"
+    assert second.kernel_decision == "NOT_EVALUATED"
+    assert "A-retry" not in m.attempts
+
 
 
 def test_t7_after_timeout_still_requires_qualification():
@@ -201,7 +203,7 @@ def test_target_rejection_is_failed_without_effect_and_releases_lei():
     assert m.attempts["A1"].state == AttemptState.FAILED
     assert m.attempts["A1"].effect_observed is False
     assert len(m.sink.effects) == 0
-    # retry_eligible=False does not override the confirmed absence of an effect.
+    assert m.attempts["A1"].retry_eligible is True
     assert m.retry_eligible_for("L") is True
     second = m.process_transaction(nonce="n-t7t8-process_transaction-08", lei="L", attempt_id="A2", payload=PAYLOAD)
     assert "A2" in m.attempts

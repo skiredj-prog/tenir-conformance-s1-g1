@@ -103,7 +103,7 @@ def test_hard_veto_sets_failed_confirms_non_execution_and_unlocks_in_order():
     assert result.client_state == "FAILED"
     assert attempt.state == AttemptState.FAILED
     assert attempt.non_execution_confirmed is True
-    assert attempt.retry_eligible is False
+    assert attempt.retry_eligible is True  # re-evaluation allowed, original veto still final
     assert "A1" not in membrane.permits
     assert len(membrane.sink.effects) == 0
     names = [event["event"] for event in membrane.events]
@@ -133,6 +133,24 @@ def test_second_submit_after_hard_veto_gets_a_fresh_attempt_and_permit():
     assert membrane.permits["A2"].attempt_id == "A2"
     assert membrane.permits["A2"] is not None
     assert bridge.calls == 2
+
+
+def test_repeated_hard_veto_rechecks_kernel_and_cannot_apply_effect():
+    """Retry eligibility is not a permit: the second attempt can be vetoed again."""
+    bridge = SequenceBridge(DENIED, DENIED)
+    membrane = Membrane(bridge)
+    first = membrane.process_transaction(
+        lei="L", attempt_id="A1", payload=PAYLOAD, nonce="n-veto-repeat-01"
+    )
+    second = membrane.process_transaction(
+        lei="L", attempt_id="A2", payload=PAYLOAD, nonce="n-veto-repeat-02"
+    )
+    assert first.disposition == Disposition.HARD_VETO
+    assert second.disposition == Disposition.HARD_VETO
+    assert bridge.calls == 2
+    assert membrane.sink.effects == []
+    assert not membrane.permits
+    assert membrane.attempts["A2"].state == AttemptState.FAILED
 
 
 def test_admit_and_await_qualification_applies_same_hard_veto_semantics():
