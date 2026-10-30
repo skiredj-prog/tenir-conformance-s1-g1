@@ -621,9 +621,8 @@ class Membrane:
             attempt.state = AttemptState.FAILED
             attempt.qualified = True
             attempt.non_execution_confirmed = True
-            attempt.retry_eligible = False
-            attempt.failure_reason = "KERNEL_HARD_VETO"
             attempt.retry_eligible = True  # a later attempt must re-run the kernel
+            attempt.failure_reason = "KERNEL_HARD_VETO"
             self._log("KernelVeto", lei=lei, attempt_id=attempt_id, decision=kd.decision,
                       transition_hash=transition_hash)
             self._log("AttemptFailed", lei=lei, attempt_id=attempt_id,
@@ -652,9 +651,8 @@ class Membrane:
             attempt.state = AttemptState.FAILED
             attempt.non_execution_confirmed = True
             attempt.qualified = True
-            attempt.retry_eligible = False
-            attempt.failure_reason = "TARGET_REJECTED"
             attempt.retry_eligible = True  # observed rejection, no effect
+            attempt.failure_reason = "TARGET_REJECTED"
             self._log("TARGET_REJECTED_OBSERVED", lei=lei, attempt_id=attempt_id,
                       transition_hash=transition_hash)
             return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value, True,
@@ -737,9 +735,8 @@ class Membrane:
             attempt.state = AttemptState.FAILED
             attempt.qualified = True
             attempt.non_execution_confirmed = True
-            attempt.retry_eligible = False
-            attempt.failure_reason = "KERNEL_HARD_VETO"
             attempt.retry_eligible = True  # a later attempt must re-run the kernel
+            attempt.failure_reason = "KERNEL_HARD_VETO"
             self._log("KernelVeto", lei=lei, attempt_id=attempt_id, decision=kd.decision)
             self._log("AttemptFailed", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO", non_execution_confirmed=True)
@@ -1276,9 +1273,8 @@ class Membrane:
             attempt.state = AttemptState.FAILED
             attempt.non_execution_confirmed = True
             attempt.qualified = True
-            attempt.retry_eligible = False
-            attempt.failure_reason = "CONSISTENT_NEGATIVE_EVIDENCE"
             attempt.retry_eligible = True  # qualified negative reconciliation
+            attempt.failure_reason = "CONSISTENT_NEGATIVE_EVIDENCE"
             self._log("EVIDENCE_BATCH_RESOLVED_FAILED", lei=attempt.lei,
                       attempt_id=attempt.attempt_id,
                       evidence_ids=sorted(evidence.evidence_id for evidence in batch),
