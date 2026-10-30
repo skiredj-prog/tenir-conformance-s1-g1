@@ -623,14 +623,15 @@ class Membrane:
             attempt.non_execution_confirmed = True
             attempt.retry_eligible = False
             attempt.failure_reason = "KERNEL_HARD_VETO"
+            attempt.retry_eligible = True  # a later attempt must re-run the kernel
             self._log("KernelVeto", lei=lei, attempt_id=attempt_id, decision=kd.decision,
                       transition_hash=transition_hash)
             self._log("AttemptFailed", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO", non_execution_confirmed=True)
-            self._log("LEI_RETAINED_BY_POLICY", lei=lei, attempt_id=attempt_id,
+            self._log("LEIUnlocked", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO")
             return MembraneResult(Disposition.HARD_VETO, AttemptState.FAILED.value, False,
-                len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
+                len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=True,
                 events=[e["event"] for e in self.events])
         self._issue_permit(attempt)
         self._consume_permit(attempt)
@@ -738,13 +739,14 @@ class Membrane:
             attempt.non_execution_confirmed = True
             attempt.retry_eligible = False
             attempt.failure_reason = "KERNEL_HARD_VETO"
+            attempt.retry_eligible = True  # a later attempt must re-run the kernel
             self._log("KernelVeto", lei=lei, attempt_id=attempt_id, decision=kd.decision)
             self._log("AttemptFailed", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO", non_execution_confirmed=True)
-            self._log("LEI_RETAINED_BY_POLICY", lei=lei, attempt_id=attempt_id,
+            self._log("LEIUnlocked", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO")
             return MembraneResult(Disposition.HARD_VETO, AttemptState.FAILED.value, False,
-                len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
+                len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=True,
                 events=[e["event"] for e in self.events])
         self._issue_permit(attempt)
         self._consume_permit(attempt)
