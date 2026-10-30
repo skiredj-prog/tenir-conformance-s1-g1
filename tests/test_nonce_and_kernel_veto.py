@@ -91,7 +91,7 @@ def test_process_transaction_requires_nonce_before_registration(kwargs):
     assert membrane.events == []
 
 
-def test_hard_veto_sets_failed_and_retains_same_lei_lock_in_order():
+def test_hard_veto_sets_failed_confirms_non_execution_and_unlocks_in_order():
     bridge = SequenceBridge(DENIED)
     membrane = Membrane(bridge)
     result = membrane.process_transaction(
@@ -107,12 +107,12 @@ def test_hard_veto_sets_failed_and_retains_same_lei_lock_in_order():
     assert "A1" not in membrane.permits
     assert len(membrane.sink.effects) == 0
     names = [event["event"] for event in membrane.events]
-    trio = [names.index("KernelVeto"), names.index("AttemptFailed"), names.index("LEI_RETAINED_BY_POLICY")]
+    trio = [names.index("KernelVeto"), names.index("AttemptFailed"), names.index("LEIUnlocked")]
     assert trio == sorted(trio)
     assert bridge.calls == 1
 
 
-def test_second_submit_after_hard_veto_is_denied_for_same_lei():
+def test_second_submit_after_hard_veto_gets_a_fresh_attempt_and_permit():
     bridge = SequenceBridge(DENIED, ALLOWED)
     membrane = Membrane(bridge)
 
@@ -126,12 +126,13 @@ def test_second_submit_after_hard_veto_is_denied_for_same_lei():
     assert first.disposition == Disposition.HARD_VETO
     assert membrane.attempts["A1"].state == AttemptState.FAILED
     assert membrane.attempts["A1"].non_execution_confirmed is True
-    assert second.disposition == Disposition.HOLD
-    assert second.client_state == "UNKNOWN"
+    assert second.disposition == Disposition.PASS
+    assert second.client_state == "RESOLVED"
     assert "A1" not in membrane.permits
-    assert "A2" not in membrane.permits
-    assert "A2" not in membrane.attempts
-    assert bridge.calls == 1  # no reevaluation after a terminal veto
+    assert "A2" in membrane.permits
+    assert membrane.permits["A2"].attempt_id == "A2"
+    assert membrane.permits["A2"] is not None
+    assert bridge.calls == 2
 
 
 def test_admit_and_await_qualification_applies_same_hard_veto_semantics():
@@ -145,4 +146,4 @@ def test_admit_and_await_qualification_applies_same_hard_veto_semantics():
     assert membrane.attempts["A1"].state == AttemptState.FAILED
     assert membrane.attempts["A1"].non_execution_confirmed is True
     assert "A1" not in membrane.permits
-    assert membrane.retry_eligible_for("L") is False
+    assert membrane.retry_eligible_for("L") is True
