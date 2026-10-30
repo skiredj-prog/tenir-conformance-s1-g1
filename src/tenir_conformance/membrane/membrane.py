@@ -370,11 +370,12 @@ class Membrane:
         # A confirmed execution permanently locks the same logical operation.
         if attempt.state == AttemptState.RESOLVED:
             return True
-        # Retry eligibility is policy/audit metadata, not an effect-lock override.
-        # FAILED is releasable only when this attempt has no observed execution effect.
+        # RFC-4 T8: non-execution proof is necessary but not sufficient.
+        # An explicit retry policy decision must also permit the new attempt.
         if (attempt.state == AttemptState.FAILED
                 and attempt.non_execution_confirmed
-                and not attempt.effect_observed):
+                and not attempt.effect_observed
+                and attempt.retry_eligible):
             return False
         return True
 
@@ -626,7 +627,7 @@ class Membrane:
                       transition_hash=transition_hash)
             self._log("AttemptFailed", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO", non_execution_confirmed=True)
-            self._log("LEIUnlocked", lei=lei, attempt_id=attempt_id,
+            self._log("LEI_RETAINED_BY_POLICY", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO")
             return MembraneResult(Disposition.HARD_VETO, AttemptState.FAILED.value, False,
                 len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
@@ -652,10 +653,11 @@ class Membrane:
             attempt.qualified = True
             attempt.retry_eligible = False
             attempt.failure_reason = "TARGET_REJECTED"
+            attempt.retry_eligible = True  # observed rejection, no effect
             self._log("TARGET_REJECTED_OBSERVED", lei=lei, attempt_id=attempt_id,
                       transition_hash=transition_hash)
             return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value, True,
-                len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
+                len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=True,
                 events=[e["event"] for e in self.events])
         # Create an execution commitment over the admitted transition, target,
         # payload, attempt identity and nonce. The sink independently rechecks
@@ -739,7 +741,7 @@ class Membrane:
             self._log("KernelVeto", lei=lei, attempt_id=attempt_id, decision=kd.decision)
             self._log("AttemptFailed", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO", non_execution_confirmed=True)
-            self._log("LEIUnlocked", lei=lei, attempt_id=attempt_id,
+            self._log("LEI_RETAINED_BY_POLICY", lei=lei, attempt_id=attempt_id,
                       reason="KERNEL_HARD_VETO")
             return MembraneResult(Disposition.HARD_VETO, AttemptState.FAILED.value, False,
                 len(self.sink.effects), kd.score, kd.decision, False, retry_eligible=False,
@@ -946,7 +948,8 @@ class Membrane:
         self._log("T7_DECLARE_FAILED", lei=attempt.lei, attempt_id=attempt_id,
                   attestation_id=attestation.attestation_id if attestation else None,
                   reason=reason, retry_eligible=retry_eligible, non_execution_confirmed=True)
-        self._log("LEI_UNLOCKED_BY_VERIFIED_NON_EXECUTION", lei=attempt.lei,
+        self._log("LEI_UNLOCKED_BY_VERIFIED_NON_EXECUTION" if retry_eligible
+                  else "LEI_RETAINED_BY_POLICY", lei=attempt.lei,
                   attempt_id=attempt_id,
                   attestation_id=attestation.attestation_id if attestation else None)
         return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value, attempt.receipt_observed,
@@ -1273,13 +1276,14 @@ class Membrane:
             attempt.qualified = True
             attempt.retry_eligible = False
             attempt.failure_reason = "CONSISTENT_NEGATIVE_EVIDENCE"
+            attempt.retry_eligible = True  # qualified negative reconciliation
             self._log("EVIDENCE_BATCH_RESOLVED_FAILED", lei=attempt.lei,
                       attempt_id=attempt.attempt_id,
                       evidence_ids=sorted(evidence.evidence_id for evidence in batch),
                       non_execution_confirmed=True)
             return MembraneResult(Disposition.HOLD, AttemptState.FAILED.value, True,
                 len(self.sink.effects), 0.0, "EVIDENCE_BATCH_FAILED", False,
-                retry_eligible=False, events=[event["event"] for event in self.events])
+                retry_eligible=True, events=[event["event"] for event in self.events])
 
         self._log("EVIDENCE_BATCH_INCONCLUSIVE", lei=attempt.lei,
                   attempt_id=attempt.attempt_id,
@@ -1419,6 +1423,7 @@ class Membrane:
         attempt.non_execution_confirmed = True
         attempt.qualified = True
         attempt.failure_reason = "RECONCILIATION_CONFIRMED_NON_EXECUTION"
+        attempt.retry_eligible = True  # independent qualified non-execution evidence
         self._log("RECONCILIATION_FAILURE_CONFIRMED_NON_EXECUTION",
                   lei=attempt.lei, attempt_id=attempt_id,
                   evidence_id=item.evidence_id, outcome=outcome,
