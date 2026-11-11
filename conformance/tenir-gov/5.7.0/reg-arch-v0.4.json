@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "product": "TENIR-Gov",
+  "release": "5.7.0",
+  "implementation_commit": null,
+  "reference": {
+    "name": "REG-ARCH",
+    "version": "0.4",
+    "digest": null,
+    "applicability": []
+  },
+  "suite": {
+    "version": null,
+    "commit": null
+  },
+  "evidence": [],
+  "status": "NOT_DEMONSTRATED",
+  "limitations": [
+    "Draft REG-ARCH v0.4 is not ratified",
+    "Release commit and suite commit not bound",
+    "No REG-ARCH-native runtime traces verified"
+  ]
+}
