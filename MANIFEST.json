@@ -205,8 +205,8 @@
   },
   "e2_historical_baseline": {
     "v1_expected_depth8_states": 36892,
-    "status": "HYPOTHESIS_UNRECOVERABLE",
-    "note": "V1 was produced against a pre-PR#6 membrane by an explorer that was not committed. Neither artifact is recoverable. The 36,892 figure is preserved as historical evidence, not as a reproducible reference.",
+    "status": "REPRODUCED_FROM_ARCHIVE",
+    "note": "The original v1 script was not committed. Reproduced on 2026-11-15 by the explorer archived at tag archive/forensic/e2-key-audit-20261009 (cf1b1ea) with membrane overlay 84e46d9, field for field except runtime; record: reg-conformance/manuscript/evidence/v7.2/replay-2026-11-15/ (Zenodo 10.5281/zenodo.24249646). The figure is a historical reference, not a CI oracle.",
     "ci_gate": false
   },
   "current_e2_baseline": {

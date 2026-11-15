@@ -118,7 +118,8 @@
   },
   "e2_baseline_v1": {
     "script_sha256": "d1488e806b4a784f7776f9ce0979b66034f7bf3076b9f7f19b19cf22cd64f6a0",
-    "status": "SUPERSEDED_UNRECOVERABLE",
+    "status": "REPRODUCED_FROM_ARCHIVE",
+    "reproduction": "Reproduced on 2026-11-15 by the explorer archived at tag archive/forensic/e2-key-audit-20261009 (cf1b1ea) with membrane overlay 84e46d9, field for field except runtime; record: reg-conformance/manuscript/evidence/v7.2/replay-2026-11-15/ (Zenodo 10.5281/zenodo.24249646).",
     "reason": "Script never committed; only its hash was recorded. The blob is not present in any Git object on the remote.",
     "counts": {
       "honest": 36892,

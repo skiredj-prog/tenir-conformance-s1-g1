@@ -4,7 +4,7 @@ Branches fermées par archivage (tag `archive/<nom>` puis suppression). Le SHA r
 
 ## Campagne E2 (groupe A) — étapes d'investigation
 
-Référence courante : `E2_BASELINES.md` sur `main`. Baseline v1 `SUPERSEDED_UNRECOVERABLE`, v2 référence courante.
+Référence courante : `E2_BASELINES.md` sur `main`. Baseline v1 `REPRODUCED_FROM_ARCHIVE` (explorateur archivé `cf1b1ea` + membrane `84e46d9`, rejeu du 15 novembre 2026), v2 référence courante.
 
 | Branche | SHA | Raison |
 |---|---|---|

@@ -23,7 +23,7 @@ Counts are meaningful only with the exact explorer, membrane revision, world, de
 
 These are the current four-world observations for this exact main-branch explorer/membrane revision. They are not expected to equal v1.
 
-**These counts exercise no dispatch.** The replay of 15 November 2026 showed that against the current membrane every dispatch-class event of the unmodified explorer raises `NONCE_REQUIRED` and every qualified non-execution claim is rejected for a missing signature, so the zero violations above are not evidence about `I1`. With the explorer supplying the attempt nonce and an Ed25519 attestation from `tests/s7_helpers.py` (patch in the replay record), `d42499b` gives:
+**These counts do not test `I1`.** The unmodified explorer supplies an attempt nonce to `admit_and_await_qualification`, so first-attempt effects are dispatched (384 states with an observed effect in `honest`). Its `process` events omit the nonce and all raise `NONCE_REQUIRED`, and its qualified non-execution claims carry no signature and are rejected. No explored state contains a `FAILED` attempt or a second admitted attempt, so the admission guard is never asked to admit an attempt after a failed one. The zero violations above therefore do not establish `I1`. With the explorer supplying the attempt nonce on every dispatch-class call and an Ed25519 attestation from `tests/s7_helpers.py` (patch in the replay record), `d42499b` gives:
 
 | World | Depth | Distinct states | Transitions checked | `I1` occurrences | Shortest trace |
 |---|---:|---:|---:|---:|---:|
@@ -32,7 +32,7 @@ These are the current four-world observations for this exact main-branch explore
 | `hidden_honest` | 8 | 180,193 | 3,424,852 | 0 | — |
 | `adversarial` | 7 | 280,023 | 3,410,213 | 305,429 | 3 |
 
-The committed explorer has not yet been updated with that patch; until it is, its CI output should not be read as an invariant check of dispatch.
+The committed explorer has not yet been updated with that patch; until it is, its CI output should not be read as an invariant check of `I1`.
 
 ## Separate diagnostic-branch observation
 
