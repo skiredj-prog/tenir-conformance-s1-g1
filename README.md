@@ -1,6 +1,10 @@
 # tenir-conformance-s1-g1
 S1 G0+G1 executable harness for REG/TENIR — Evidence Lost After Commit (candidate operational definition + self-contained harness). Not a validation of production REG.
 
+## Réutilisation pour la conformance client REG
+
+Voir [le guide de réutilisation](docs/REUTILISATION_REG_CONFORMANCE_CLIENT.md) pour le mapping des scénarios, leurs dépendances causales, le test concurrent S8, le contrat d’adapter candidat et les limites de preuve. Les PASS du harness restent des résultats de laboratoire et ne qualifient pas une gateway client.
+
 ## S11 scope and limitations
 
 > **Trust anchor.** The signed Realm-manifest loader (introduced in follow-up PR #13) accepts the public key from the caller. A signed trust-root lookup is not yet implemented. Until it is, the caller controls what is trusted.
