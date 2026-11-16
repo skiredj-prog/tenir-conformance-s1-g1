@@ -1,0 +1,38 @@
+flowchart LR
+    S1[S1 · Evidence lost / état unresolved]
+    S2[S2 · Qualification timeout]
+    S3S[S3 · Duplicate séquentiel]
+    S3C[S3 · Duplicate concurrent — barrière A1/A2]
+    S4A[S4a · Receipt tardif après fenêtre fermée]
+    S4B[S4b · Token périmé en fenêtre ouverte]
+    S5[S5 · Batch contradictoire — fixture dédié]
+    S6[S6 · Reconciliation d’un état UNKNOWN]
+    S8[S8 · Admission concurrente — barrière de départ]
+    S12[S12 · Deux contextes Realm/politiques]
+    FIX[Fixture frais par cas · état non partagé entre scénarios]
+
+    S1 -->|si le même état unresolved est réutilisé| S2
+    S1 -->|si le même verrou LEI est réutilisé| S3S
+    S1 -.->|composite facultatif| S6
+    S2 -.->|composite facultatif : timeout puis receipt tardif| S4A
+    S4A -.->|UNKNOWN réutilisé, sinon fixture propre| S6
+    S4B -.->|UNKNOWN réutilisé, sinon fixture propre| S6
+
+    FIX --> S2
+    FIX --> S3S
+    FIX --> S3C
+    FIX --> S4A
+    FIX --> S4B
+    FIX --> S5
+    FIX --> S6
+    FIX --> S8
+    FIX --> S12
+
+    classDef sequential fill:#e7f1ff,stroke:#2c5f9a,color:#10243a;
+    classDef optional fill:#fff2cc,stroke:#b87900,color:#3b2a00;
+    classDef concurrent fill:#fbe9e7,stroke:#a7493f,color:#421b17;
+    classDef independent fill:#e7f5ed,stroke:#32714b,color:#163322;
+    class S1,S2,S3S,S4A,S4B,S6 sequential;
+    class FIX optional;
+    class S3C,S8 concurrent;
+    class S5,S12 independent;
