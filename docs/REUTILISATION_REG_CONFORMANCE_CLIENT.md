@@ -46,6 +46,10 @@ flowchart LR
     S12[S12 politiques Realm séparées]
 ```
 
+![Dépendances conditionnelles et cas parallèles S1–S6/S8/S12](diagrams/REG_TENIR_Scenario_Dependencies.png)
+
+Diagramme complet : [source Mermaid](diagrams/REG_TENIR_Scenario_Dependencies.mmd) · [rendu PNG](diagrams/REG_TENIR_Scenario_Dependencies.png).
+
 Les flèches pointillées désignent une option de composition de tests, pas une exigence d’exécuter le job précédent. À défaut d’un état partagé explicitement défini, le scénario doit reconstruire son propre pré-état. S8 ne doit pas être « sérialisé » : sa simultanéité est le stimulus évalué. Les 100 répétitions S8a et le contrôle S8b/S8c doivent rester décrits comme expériences bornées, pas comme une preuve générale.
 
 ## Contrat d’adapter candidat
