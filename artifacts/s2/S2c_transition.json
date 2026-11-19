@@ -1,0 +1,42 @@
+[
+  {
+    "ts_ms": 1000000,
+    "event": "T1_AttemptRegistered",
+    "lei": "L",
+    "attempt_id": "A",
+    "nonce": "n-s2"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "PERMIT_ISSUED",
+    "lei": "L",
+    "attempt_id": "A",
+    "nonce": "n-s2"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "PERMIT_CONSUMED",
+    "lei": "L",
+    "attempt_id": "A"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "EFFECT_APPLIED",
+    "lei": "L",
+    "attempt_id": "A"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "AWAITING_QUALIFICATION",
+    "lei": "L",
+    "attempt_id": "A",
+    "await_until_ms": 1005000,
+    "tau_k_ms": 5000
+  },
+  {
+    "ts_ms": 1001000,
+    "event": "RECEIPT_QUALIFIED",
+    "lei": "L",
+    "attempt_id": "A"
+  }
+]

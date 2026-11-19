@@ -1,0 +1,71 @@
+{
+  "a2_admission_disposition": "HOLD",
+  "assertions": {
+    "A1_api_decision": true,
+    "A2_terminal_state": true,
+    "A3_effect_delta_zero": true,
+    "A4_canonical_event": true,
+    "A5_permit_isolation": true,
+    "A6_resolved_attempt_blocks_A2": true,
+    "A7_claim_scope": "tested sequential interleavings only"
+  },
+  "attempts_after_scenario": {
+    "A1": {
+      "effect_observed": true,
+      "failure_reason": null,
+      "lei": "L",
+      "qualified": true,
+      "retry_eligible": false,
+      "state": "RESOLVED",
+      "timeout_fired": true
+    }
+  },
+  "claim_scope": "tested sequential interleavings only",
+  "effect_sink_count_after_reconcile": 1,
+  "effect_sink_count_before_reconcile": 1,
+  "effect_sink_delta_during_reconcile": 0,
+  "permit_ids_after_reconcile": [
+    "A1"
+  ],
+  "permit_ids_after_scenario": [
+    "A1"
+  ],
+  "permit_ids_before_reconcile": [
+    "A1"
+  ],
+  "permit_registry_after_reconcile": {
+    "A1": {
+      "consumed": true,
+      "lei": "L",
+      "revoked": false
+    }
+  },
+  "permit_registry_after_scenario": {
+    "A1": {
+      "attempt_id": "A1",
+      "consumed": true,
+      "issued_at_ms": 1000000,
+      "lei": "L",
+      "revoked": false
+    }
+  },
+  "permit_registry_before_reconcile": {
+    "A1": {
+      "consumed": true,
+      "lei": "L",
+      "revoked": false
+    }
+  },
+  "reconcile_result": {
+    "client_state": "RESOLVED",
+    "disposition": "PASS",
+    "effect_count": 1,
+    "kernel_decision": "RECONCILIATION_SUCCESS",
+    "retry_eligible": null
+  },
+  "scenario_id": "G0_S6",
+  "scenario_sha256": "15da7894385ad416f46fd0718c21b621e6a81baed9b67aee5ae0fb00f0efc2af",
+  "spec_sha256": "159483ba86fbedbd32467bfae590fb70303a62050da4f20cf9c52e3caa1248a2",
+  "subcase": "S6a",
+  "timestamp": "2026-11-19T02:44:50.007899+00:00"
+}

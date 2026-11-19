@@ -1,0 +1,13 @@
+{
+  "algorithm": "Ed25519",
+  "attempt_id": "A1",
+  "attestation_id": "S7E-NOMINAL",
+  "key_epoch": 1,
+  "key_id": "K1",
+  "lei": "L",
+  "non_execution_confirmed": true,
+  "nonce": "n1",
+  "outcome": "FAILED",
+  "schema": "tenir.non-execution-attestation.v1",
+  "signature": "5f2634a7aac7bafa6fa926271b13a83b7e978495abee61b98dc326187d9f7f202a17bd48eef480bf6573e88863dcc7298fbbb92ede62b0c192aba9b9d2989408"
+}

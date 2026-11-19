@@ -1,0 +1,11 @@
+{
+  "actual": "TRANSITION_REQUIRED",
+  "claim_scope": "deterministic unit conformance; in-process membrane harness",
+  "details": {},
+  "expected": "TRANSITION_REQUIRED; kernel_calls=0",
+  "kernel_calls": 0,
+  "scenario_id": "G0_S11",
+  "spec_sha256": "e2f03b4015205d291c873a434499bbec78b97f9097dbdd0d62b99d84541d7a6c",
+  "subcase": "TAU-001",
+  "transition_hash": null
+}

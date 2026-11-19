@@ -1,0 +1,13 @@
+{
+  "actual": "PASS",
+  "claim_scope": "deterministic unit conformance; in-process membrane harness",
+  "details": {
+    "effect_count": 1
+  },
+  "expected": "PASS; kernel_calls=1; effects=1",
+  "kernel_calls": 1,
+  "scenario_id": "G0_S11",
+  "spec_sha256": "e2f03b4015205d291c873a434499bbec78b97f9097dbdd0d62b99d84541d7a6c",
+  "subcase": "S11a",
+  "transition_hash": "7225a335a36d499d511669c2c1e6fd009ac1910ab5bbd1f80fda162c82100551"
+}

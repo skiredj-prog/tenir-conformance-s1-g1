@@ -1,0 +1,67 @@
+[
+  {
+    "action_class": "default",
+    "event": "TRANSITION_ADMITTED",
+    "payload_digest": "7124e69d8c5739b4d1ea02ad369612fe2025f00eb39d858d900939fac8478daf",
+    "principal": "default",
+    "source_realm": "legacy",
+    "target_realm": "legacy",
+    "tau_id": "TAU-DEFAULT-TEST",
+    "transition_hash": "402296305e0be813f8626231c2ccf8aef03ac2441d5c62a54cc3e761f38dc237",
+    "ts_ms": 1000000
+  },
+  {
+    "attempt_id": "A1",
+    "event": "T1_AttemptRegistered",
+    "lei": "L",
+    "nonce": "n1",
+    "ts_ms": 1000000
+  },
+  {
+    "attempt_id": "A1",
+    "event": "PERMIT_ISSUED",
+    "lei": "L",
+    "nonce": "n1",
+    "ts_ms": 1000000
+  },
+  {
+    "attempt_id": "A1",
+    "event": "PERMIT_CONSUMED",
+    "lei": "L",
+    "ts_ms": 1000000
+  },
+  {
+    "attempt_id": "A1",
+    "event": "T3_ReceiptLost",
+    "kind": "REQUEST_LOST",
+    "lei": "L",
+    "ts_ms": 1000000
+  },
+  {
+    "attempt_id": "A1",
+    "attestation_id": "S7D-TAMPERED",
+    "decision": "SIGNATURE_INVALID",
+    "event": "NON_EXECUTION_ATTESTATION_REJECTED",
+    "lei": "L",
+    "reason": "content_mismatch",
+    "ts_ms": 1000000
+  },
+  {
+    "action_class": "default",
+    "event": "TRANSITION_ADMITTED",
+    "payload_digest": "7124e69d8c5739b4d1ea02ad369612fe2025f00eb39d858d900939fac8478daf",
+    "principal": "default",
+    "source_realm": "legacy",
+    "target_realm": "legacy",
+    "tau_id": "TAU-DEFAULT-TEST",
+    "transition_hash": "402296305e0be813f8626231c2ccf8aef03ac2441d5c62a54cc3e761f38dc237",
+    "ts_ms": 1000000
+  },
+  {
+    "attempt_id": "A2",
+    "event": "T1_guard_FALSE",
+    "lei": "L",
+    "reason": "UNRESOLVED_SAME_LEI",
+    "ts_ms": 1000000
+  }
+]

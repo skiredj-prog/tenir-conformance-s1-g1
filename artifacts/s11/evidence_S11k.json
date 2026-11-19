@@ -1,0 +1,11 @@
+{
+  "actual": "EXECUTION_COMMIT_TRANSITION_MISMATCH",
+  "claim_scope": "deterministic unit conformance; in-process membrane harness",
+  "details": {},
+  "expected": "HARD_VETO; effect=0 on post-admission transition mutation",
+  "kernel_calls": 1,
+  "scenario_id": "G0_S11",
+  "spec_sha256": "e2f03b4015205d291c873a434499bbec78b97f9097dbdd0d62b99d84541d7a6c",
+  "subcase": "S11k",
+  "transition_hash": "73f7cc168db2dd49855d8429dd7384b74130da3dac522ae2180ad687438916c2"
+}

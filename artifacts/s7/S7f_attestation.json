@@ -1,0 +1,13 @@
+{
+  "algorithm": "Ed25519",
+  "attempt_id": "A1",
+  "attestation_id": "S7F-CROSS-LEI",
+  "key_epoch": 1,
+  "key_id": "K1",
+  "lei": "M",
+  "non_execution_confirmed": true,
+  "nonce": "n1",
+  "outcome": "FAILED",
+  "schema": "tenir.non-execution-attestation.v1",
+  "signature": "b741a44a28b0981fd3443f1305a657664a735e9899b5af879544170d9c1837aded120116f8e0407a6e27888cac4bed98de3f67e6819c2b9edf16bc5d46ee5309"
+}

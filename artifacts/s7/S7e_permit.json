@@ -1,0 +1,43 @@
+{
+  "after_blocked_A2": {
+    "A1": {
+      "attempt_id": "A1",
+      "consumed": true,
+      "issued_at_ms": 1000000,
+      "lei": "L",
+      "revoked": false
+    },
+    "A2": {
+      "attempt_id": "A2",
+      "consumed": true,
+      "issued_at_ms": 1000000,
+      "lei": "L",
+      "revoked": false
+    }
+  },
+  "after_verification": {
+    "A1": {
+      "attempt_id": "A1",
+      "consumed": true,
+      "issued_at_ms": 1000000,
+      "lei": "L",
+      "revoked": false
+    },
+    "A2": {
+      "attempt_id": "A2",
+      "consumed": true,
+      "issued_at_ms": 1000000,
+      "lei": "L",
+      "revoked": false
+    }
+  },
+  "before": {
+    "A1": {
+      "attempt_id": "A1",
+      "consumed": true,
+      "issued_at_ms": 1000000,
+      "lei": "L",
+      "revoked": false
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "actual": "PASS/HOLD",
+  "claim_scope": "deterministic unit conformance; in-process membrane harness",
+  "details": {
+    "allowed_transition_hash": "8cdfd4d30a88ac00b1b299ffed2d950d5a6eb08d467933f849c09613e980ce64",
+    "excluded_transition_hash": "0f258c9398c5ee484d6d9f0a4987d16e6616ec60b7ff724459814e494e7dc353"
+  },
+  "expected": "PASS for allowed source; HOLD for excluded source",
+  "kernel_calls": 1,
+  "scenario_id": "G0_S11",
+  "spec_sha256": "e2f03b4015205d291c873a434499bbec78b97f9097dbdd0d62b99d84541d7a6c",
+  "subcase": "S11b",
+  "transition_hash": "0f258c9398c5ee484d6d9f0a4987d16e6616ec60b7ff724459814e494e7dc353"
+}

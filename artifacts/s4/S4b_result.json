@@ -1,0 +1,7 @@
+{
+  "subcase": "S4b",
+  "spec_sha256": "a034cff6df50a44806c9c20faa6dfeb2aad12aac50886274827fba6c56046360",
+  "scenario_sha256": "fad0831f99c3f81377b5a75aed6a3b43d0b45c22600d4a45d2f010aef60ab38a",
+  "client": "StaleReceiptError",
+  "disposition": "REJECT"
+}

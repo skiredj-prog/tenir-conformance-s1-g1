@@ -1,0 +1,15 @@
+{
+  "actual": "PASS+HARD_VETO",
+  "claim_scope": "deterministic unit conformance; in-process membrane harness",
+  "details": {
+    "control_effect_count": 1,
+    "grant_hash": "7225a335a36d499d511669c2c1e6fd009ac1910ab5bbd1f80fda162c82100551",
+    "mutated_effect_count": 0
+  },
+  "expected": "PASS for admitted action; HARD_VETO and no effect for changed action",
+  "kernel_calls": 1,
+  "scenario_id": "G0_S11",
+  "spec_sha256": "e2f03b4015205d291c873a434499bbec78b97f9097dbdd0d62b99d84541d7a6c",
+  "subcase": "CT-R4-002",
+  "transition_hash": "1012a79140c4ab458d0d834d45270576ee8a8764d9011419f05f602b4e0cf9bb"
+}

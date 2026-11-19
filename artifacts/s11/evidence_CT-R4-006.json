@@ -1,0 +1,14 @@
+{
+  "actual": "HOLD+HARD_VETO",
+  "claim_scope": "deterministic unit conformance; in-process membrane harness",
+  "details": {
+    "hold_effect_count": 0,
+    "veto_effect_count": 0
+  },
+  "expected": "HOLD and HARD_VETO: effect_count=0, kernel_calls=0",
+  "kernel_calls": 0,
+  "scenario_id": "G0_S11",
+  "spec_sha256": "e2f03b4015205d291c873a434499bbec78b97f9097dbdd0d62b99d84541d7a6c",
+  "subcase": "CT-R4-006",
+  "transition_hash": "51562a831275d347977d652e8ff1db12934368345565ddc5006cf8648c67866b"
+}

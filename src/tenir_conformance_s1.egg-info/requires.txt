@@ -1,0 +1,6 @@
+cryptography<47,>=42
+PyYAML<7,>=6
+rfc8785<1,>=0.1.4
+
+[test]
+pytest<9,>=8

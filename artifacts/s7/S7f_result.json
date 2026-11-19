@@ -1,0 +1,159 @@
+{
+  "actual_decision": "BINDING_LEI_MISMATCH",
+  "actual_state": "UNKNOWN",
+  "assertions": {
+    "A1_remains_unknown": true,
+    "A2_not_admitted": true,
+    "LEI_lock_holds": true,
+    "effect_sink_unchanged_by_rejection": true,
+    "invalid_attestation_retained_unverified": true,
+    "permit_registry_unchanged_by_rejection": true,
+    "reason_is_specific": true,
+    "rejection_event_contains_attestation_id": true
+  },
+  "attempt_state_after_blocked_A2": {
+    "A1": {
+      "attempt_id": "A1",
+      "effect_observed": false,
+      "lei": "L",
+      "non_execution_confirmed": false,
+      "nonce": "n1",
+      "qualified": false,
+      "state": "UNKNOWN"
+    }
+  },
+  "attempt_state_after_verification": {
+    "A1": {
+      "attempt_id": "A1",
+      "effect_observed": false,
+      "lei": "L",
+      "non_execution_confirmed": false,
+      "nonce": "n1",
+      "qualified": false,
+      "state": "UNKNOWN"
+    }
+  },
+  "attempt_state_before": {
+    "A1": {
+      "attempt_id": "A1",
+      "effect_observed": false,
+      "lei": "L",
+      "non_execution_confirmed": false,
+      "nonce": "n1",
+      "qualified": false,
+      "state": "UNKNOWN"
+    }
+  },
+  "blocked_A2_result": {
+    "client_state": "UNKNOWN",
+    "disposition": "HOLD",
+    "effect_count": 0,
+    "kernel_decision": "NOT_EVALUATED"
+  },
+  "claim_scope": "tested sequential interleavings only",
+  "effect_sink_after_blocked_A2": [],
+  "effect_sink_after_verification": [],
+  "effect_sink_before": [],
+  "expected_reason": "BINDING_LEI_MISMATCH",
+  "permit_registry_after_blocked_A2": {
+    "A1": {
+      "attempt_id": "A1",
+      "consumed": true,
+      "issued_at_ms": 1000000,
+      "lei": "L",
+      "revoked": false
+    }
+  },
+  "permit_registry_after_verification": {
+    "A1": {
+      "attempt_id": "A1",
+      "consumed": true,
+      "issued_at_ms": 1000000,
+      "lei": "L",
+      "revoked": false
+    }
+  },
+  "permit_registry_before": {
+    "A1": {
+      "attempt_id": "A1",
+      "consumed": true,
+      "issued_at_ms": 1000000,
+      "lei": "L",
+      "revoked": false
+    }
+  },
+  "scenario_id": "G0_S7",
+  "scenario_sha256": "468cde1917ede0deca4a0ceb7fa0ea403ef39c0f9b897904e4810531b729b734",
+  "signed_payload_and_signature": {
+    "algorithm": "Ed25519",
+    "attempt_id": "A1",
+    "attestation_id": "S7F-CROSS-LEI",
+    "key_epoch": 1,
+    "key_id": "K1",
+    "lei": "M",
+    "non_execution_confirmed": true,
+    "nonce": "n1",
+    "outcome": "FAILED",
+    "schema": "tenir.non-execution-attestation.v1",
+    "signature": "b741a44a28b0981fd3443f1305a657664a735e9899b5af879544170d9c1837aded120116f8e0407a6e27888cac4bed98de3f67e6819c2b9edf16bc5d46ee5309"
+  },
+  "spec_sha256": "a9502e2c610ba5fd7d892a6b6db0365ab90b6e087fc8eace87e74681307ba384",
+  "subcase": "S7f",
+  "timestamp": "2026-11-19T02:44:50.342361+00:00",
+  "trust_root_file_sha256": "6713faf2b565d9dacb58c21933d2252689604a157f815a17a9c21c23df593972",
+  "trust_root_snapshot": {
+    "keys": {
+      "K1": {
+        "algorithm": "Ed25519",
+        "key_epoch": 1,
+        "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+        "revoked_at_epoch": null,
+        "status": "active"
+      }
+    },
+    "root_epoch": 1,
+    "root_id": "TENIR-LAB-S7-TEST-ROOT",
+    "version": 1
+  },
+  "verification_trace": {
+    "attestation_id": "S7F-CROSS-LEI",
+    "payload_and_signature": {
+      "algorithm": "Ed25519",
+      "attempt_id": "A1",
+      "attestation_id": "S7F-CROSS-LEI",
+      "key_epoch": 1,
+      "key_id": "K1",
+      "lei": "M",
+      "non_execution_confirmed": true,
+      "nonce": "n1",
+      "outcome": "FAILED",
+      "schema": "tenir.non-execution-attestation.v1",
+      "signature": "b741a44a28b0981fd3443f1305a657664a735e9899b5af879544170d9c1837aded120116f8e0407a6e27888cac4bed98de3f67e6819c2b9edf16bc5d46ee5309"
+    },
+    "received_at_ms": 1000000,
+    "status": "unverified",
+    "submitted_against": {
+      "attempt_id": "A1",
+      "lei": "L",
+      "nonce": "n1"
+    },
+    "trust_root_epoch": 1,
+    "trust_root_id": "TENIR-LAB-S7-TEST-ROOT",
+    "trust_root_snapshot": {
+      "keys": {
+        "K1": {
+          "algorithm": "Ed25519",
+          "key_epoch": 1,
+          "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+          "revoked_at_epoch": null,
+          "status": "active"
+        }
+      },
+      "root_epoch": 1,
+      "root_id": "TENIR-LAB-S7-TEST-ROOT",
+      "version": 1
+    },
+    "verification_decision": "BINDING_LEI_MISMATCH",
+    "verification_reason": "BINDING_LEI_MISMATCH"
+  }
+}

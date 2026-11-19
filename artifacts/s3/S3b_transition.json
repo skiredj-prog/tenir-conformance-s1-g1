@@ -1,0 +1,82 @@
+[
+  {
+    "ts_ms": 1000000,
+    "event": "TRANSITION_ADMITTED",
+    "tau_id": "TAU-DEFAULT-TEST",
+    "transition_hash": "402296305e0be813f8626231c2ccf8aef03ac2441d5c62a54cc3e761f38dc237",
+    "source_realm": "legacy",
+    "target_realm": "legacy",
+    "action_class": "default",
+    "principal": "default",
+    "payload_digest": "7124e69d8c5739b4d1ea02ad369612fe2025f00eb39d858d900939fac8478daf"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "T1_AttemptRegistered",
+    "lei": "L",
+    "attempt_id": "A1",
+    "nonce": "n-s3-process_transaction-01"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "PERMIT_ISSUED",
+    "lei": "L",
+    "attempt_id": "A1",
+    "nonce": "n-s3-process_transaction-01"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "PERMIT_CONSUMED",
+    "lei": "L",
+    "attempt_id": "A1"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "EXECUTION_COMMIT_CREATED",
+    "lei": "L",
+    "attempt_id": "A1",
+    "target_realm": "legacy",
+    "transition_hash": "402296305e0be813f8626231c2ccf8aef03ac2441d5c62a54cc3e761f38dc237",
+    "payload_digest": "7124e69d8c5739b4d1ea02ad369612fe2025f00eb39d858d900939fac8478daf",
+    "commit_hash": "0af21419f9bd1e16d7357dcbedb830e0832280170d08bfd21484b8f67ad7d2ab"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "EFFECT_APPLIED",
+    "lei": "L",
+    "attempt_id": "A1",
+    "transition_hash": "402296305e0be813f8626231c2ccf8aef03ac2441d5c62a54cc3e761f38dc237"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "T3_ReceiptLost",
+    "lei": "L",
+    "attempt_id": "A1",
+    "kind": "RECEIPT_LOST"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "T1_guard_FALSE",
+    "lei": "L",
+    "attempt_id": "A2",
+    "reason": "UNRESOLVED_SAME_LEI"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "TRANSITION_ADMITTED",
+    "tau_id": "TAU-DEFAULT-TEST",
+    "transition_hash": "402296305e0be813f8626231c2ccf8aef03ac2441d5c62a54cc3e761f38dc237",
+    "source_realm": "legacy",
+    "target_realm": "legacy",
+    "action_class": "default",
+    "principal": "default",
+    "payload_digest": "7124e69d8c5739b4d1ea02ad369612fe2025f00eb39d858d900939fac8478daf"
+  },
+  {
+    "ts_ms": 1000000,
+    "event": "T1_guard_FALSE",
+    "lei": "L",
+    "attempt_id": "A2",
+    "reason": "UNRESOLVED_SAME_LEI"
+  }
+]

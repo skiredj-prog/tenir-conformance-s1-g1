@@ -1,0 +1,11 @@
+{
+  "actual": "TARGET_POSTCONDITIONS_UNDECLARED",
+  "claim_scope": "deterministic unit conformance; in-process membrane harness",
+  "details": {},
+  "expected": "HOLD; target postconditions required",
+  "kernel_calls": 0,
+  "scenario_id": "G0_S11",
+  "spec_sha256": "e2f03b4015205d291c873a434499bbec78b97f9097dbdd0d62b99d84541d7a6c",
+  "subcase": "S11e",
+  "transition_hash": "e5e9f1350a75784d51745c621bcfd72160e91b89a897713f588c5c9c05f87391"
+}

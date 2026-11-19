@@ -1,0 +1,13 @@
+[
+  {
+    "lei": "L",
+    "attempt_id": "A1",
+    "payload": {
+      "P": 0.5,
+      "V": 0.5,
+      "K": 1.0,
+      "option_space": 1.0
+    },
+    "commit_hash": "0af21419f9bd1e16d7357dcbedb830e0832280170d08bfd21484b8f67ad7d2ab"
+  }
+]

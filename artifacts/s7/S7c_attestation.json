@@ -1,0 +1,13 @@
+{
+  "algorithm": "Ed25519",
+  "attempt_id": "A1",
+  "attestation_id": "S7C-REVOKED-KEY",
+  "key_epoch": 1,
+  "key_id": "K1",
+  "lei": "L",
+  "non_execution_confirmed": true,
+  "nonce": "n1",
+  "outcome": "FAILED",
+  "schema": "tenir.non-execution-attestation.v1",
+  "signature": "ee693abe595d2785c396554f7bf74adb9de1cb854e3fba034b2913baa7361b2816e836738348b919c98b448721bd5df7f45f38db8d0864f2d51980c2da7eb40b"
+}
