@@ -1,9 +1,0 @@
-{
-  "A1_api_decision": true,
-  "A2_terminal_state": true,
-  "A3_effect_delta_zero": true,
-  "A4_canonical_event": true,
-  "A5_permit_isolation": true,
-  "A6_resolved_attempt_blocks_A2": true,
-  "A7_claim_scope": "tested sequential interleavings only"
-}

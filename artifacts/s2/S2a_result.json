@@ -1,9 +1,0 @@
-{
-  "subcase": "S2a",
-  "spec_sha256": "6efad9bc207fce902514dfcaefc1095efc464b5349b923482d20085e0a8987c9",
-  "scenario_sha256": "919b9dc345b052f7a56c74580cfb485ef875d3201ffed74ef8bbd849d3e6d9d8",
-  "disposition": "HOLD",
-  "client_state": "UNKNOWN",
-  "timeout_fired": true,
-  "claim_scope": "sequential interleavings only"
-}
